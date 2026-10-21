@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MTRS — Movie Ticket Reservation System | DBMS Project</title>
+    <meta name="description" content="A comprehensive, normalized BCNF Movie Ticket Reservation System built for Database Management Systems, featuring live seat booking, transaction rollback, and 18 academic SQL queries.">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/seat-layout.css">
+</head>
+<body>
+
+    <!-- ====================================================================
+         TOP NAVIGATION BAR
+         ==================================================================== -->
+    <nav class="navbar" id="app-navbar">
+        <div class="nav-brand" onclick="window.App.switchView('home')">
+            <div class="brand-icon">🎬</div>
+            <div>
+                <div class="brand-title">MTRS<span>•</span>CINEMAS</div>
+            </div>
+            <span class="brand-tag">BCNF 9-RELATIONS</span>
+        </div>
+
+        <div class="nav-search">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="navbar-search" class="search-input" placeholder="Search movies, genres, theaters (e.g. Superman, IMAX, PVR)..." aria-label="Search movies">
+        </div>
+
+        <ul class="nav-links">
+            <li class="nav-item active" data-view="home">Movies</li>
+            <li class="nav-item" data-view="my-bookings">My Bookings</li>
+            <li class="nav-item" data-view="sql-sandbox" style="color: var(--accent-cyan);">SQL Sandbox (18 DA2)</li>
+            <li class="nav-item" data-view="admin">Admin Panel</li>
+        </ul>
+
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <button id="btn-reset-db" class="btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.78rem;" title="Reset Relational Database to Seed Data">
+                🔄 Reset DB
+            </button>
+
+            <div class="nav-user-pill" id="user-profile-pill" title="Click to switch student/customer persona">
+                <div class="user-avatar" id="navbar-user-avatar">RS</div>
+                <div class="user-info" id="navbar-user-name">Rahul Sharma</div>
+                <span style="font-size: 0.7rem; color: var(--text-muted);">▼</span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- ====================================================================
+         VIEW 1: HOME / MOVIE BROWSER VIEW
+         ==================================================================== -->
+    <main id="view-home" class="main-container">
+        <!-- Hero Showcase -->
+        <section class="hero-section">
+            <div class="hero-card">
+                <div>
+                    <span class="hero-badge">⚡ Now Showing in IMAX Laser & 3D</span>
+                    <h1 class="hero-title">SUPERMAN: LEGACY</h1>
+                    <div class="hero-meta">
+                        <span class="meta-rating">★ 8.6/10</span>
+                        <span class="meta-pill">Action / Sci-Fi</span>
+                        <span class="meta-pill">English</span>
+                        <span class="meta-pill">2h 30m</span>
+                        <span class="meta-pill" style="border-color: var(--accent-cyan); color: var(--accent-cyan);">IMAX 3D</span>
+                    </div>
+                    <p class="hero-synopsis">
+                        The iconic hero reconciles his Kryptonian heritage with his human upbringing, standing as the embodiment of truth, justice, and tomorrow in a world that views kindness as old-fashioned.
+                    </p>
+                    <div class="hero-actions">
+                        <button class="btn-primary" id="btn-hero-book">
+                            🎟️ Book Tickets Now
+                        </button>
+                        <button class="btn-secondary" onclick="window.App.switchView('sql-sandbox')">
+                            📊 View SQL Queries
+                        </button>
+                    </div>
+                </div>
+
+                <div class="hero-poster-preview" id="hero-poster-box">
+                    <!-- Loaded dynamically from assets/posters.js -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Filter Controls -->
+        <section class="filter-bar">
+            <!-- Genre Filters -->
+            <div class="filter-group">
+                <span class="filter-label">Genre:</span>
+                <button class="filter-chip active" data-filter-type="genre" data-filter-value="All">All</button>
+                <button class="filter-chip" data-filter-type="genre" data-filter-value="Action">Action</button>
+                <button class="filter-chip" data-filter-type="genre" data-filter-value="Sci-Fi">Sci-Fi</button>
+                <button class="filter-chip" data-filter-type="genre" data-filter-value="Crime">Crime</button>
+                <button class="filter-chip" data-filter-type="genre" data-filter-value="Musical">Musical</button>
+                <button class="filter-chip" data-filter-type="genre" data-filter-value="Thriller">Thriller</button>
+            </div>
+
+            <!-- Format Filters -->
+            <div class="filter-group">
+                <span class="filter-label">Format:</span>
+                <button class="filter-chip active" data-filter-type="format" data-filter-value="All">All</button>
+                <button class="filter-chip" data-filter-type="format" data-filter-value="2D">2D</button>
+                <button class="filter-chip" data-filter-type="format" data-filter-value="3D">3D</button>
+                <button class="filter-chip" data-filter-type="format" data-filter-value="IMAX">IMAX 3D</button>
+            </div>
+
+            <!-- Language Filters -->
+            <div class="filter-group">
+                <span class="filter-label">Language:</span>
+                <button class="filter-chip active" data-filter-type="lang" data-filter-value="All">All</button>
+                <button class="filter-chip" data-filter-type="lang" data-filter-value="English">English</button>
+                <button class="filter-chip" data-filter-type="lang" data-filter-value="Kannada">Kannada</button>
+            </div>
+        </section>
+
+        <!-- Movie Catalog Grid -->
+        <section class="main-content">
+            <div class="section-header">
+                <h2 class="section-title">Current Theatrical Releases</h2>
+                <span style="font-size: 0.88rem; color: var(--text-muted);">Showing live schedules in Bangalore</span>
+            </div>
+            <div class="movie-grid" id="movie-grid-container">
+                <!-- Movie cards populated by js/app.js -->
+            </div>
+        </section>
+    </main>
+
+    <!-- ====================================================================
+         VIEW 2: THEATER & SHOW SELECTOR VIEW
+         ==================================================================== -->
+    <main id="view-theaters" class="main-content theater-view">
+        <!-- Rendered dynamically by window.App.renderTheaterView() -->
+    </main>
+
+    <!-- ====================================================================
+         VIEW 3: INTERACTIVE SEAT LAYOUT VIEW
+         ==================================================================== -->
+    <main id="view-seats" class="main-content seat-layout-view">
+        <!-- Rendered dynamically by window.App.renderSeatLayout() -->
+    </main>
+
+    <!-- ====================================================================
+         VIEW 4: MY BOOKINGS VIEW
+         ==================================================================== -->
+    <main id="view-my-bookings" class="main-content" style="display: none; padding-top: 2rem;">
+        <div id="my-bookings-container">
+            <!-- Rendered dynamically by window.App.renderMyBookings() -->
+        </div>
+    </main>
+
+    <!-- ====================================================================
+         VIEW 5: ADMIN MANAGEMENT PANEL
+         ==================================================================== -->
+    <main id="view-admin" class="main-content admin-view" style="display: none; padding-top: 2rem;">
+        <div class="section-header">
+            <div>
+                <h2 class="section-title">Cinema Operations &amp; DBMS Administration</h2>
+                <p style="color: var(--text-muted); font-size: 0.88rem; margin-top: 0.25rem;">
+                    Manage show schedules, screen capacities, audit 9 BCNF relations, and inspect financial metrics.
+                </p>
+            </div>
+        </div>
+
+        <!-- KPI Metrics Grid -->
+        <div class="admin-kpi-grid">
+            <div class="kpi-card gold">
+                <div class="kpi-label">Total Revenue Collected</div>
+                <div class="kpi-value" id="kpi-total-revenue">₹0.00</div>
+            </div>
+            <div class="kpi-card emerald">
+                <div class="kpi-label">Confirmed Bookings</div>
+                <div class="kpi-value" id="kpi-total-bookings">0</div>
+            </div>
+            <div class="kpi-card cyan">
+                <div class="kpi-label">Active Theatrical Movies</div>
+                <div class="kpi-value" id="kpi-active-movies">0</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Scheduled Shows</div>
+                <div class="kpi-value" id="kpi-total-shows">0</div>
+            </div>
+        </div>
+
+        <!-- Admin Tab Navigation -->
+        <div class="admin-tabs">
+            <button class="admin-tab-btn active" data-tab="shows">📅 Show Schedule Manager</button>
+            <button class="admin-tab-btn" data-tab="screens">🖥️ Screen Capacities</button>
+            <button class="admin-tab-btn" data-tab="revenue">📈 Revenue &amp; Occupancy (sp_GetShowRevenueReport)</button>
+            <button class="admin-tab-btn" data-tab="relations">🗄️ Relational Schema Browser (9 Tables)</button>
+        </div>
+
+        <!-- Admin Tab 1: Shows Schedule -->
+        <div id="admin-tab-shows" class="admin-tab-content active">
+            <div class="data-table-container" id="admin-shows-table-container"></div>
+        </div>
+
+        <!-- Admin Tab 2: Screen Capacities -->
+        <div id="admin-tab-screens" class="admin-tab-content">
+            <div class="data-table-container" id="admin-screens-table-container"></div>
+        </div>
+
+        <!-- Admin Tab 3: Revenue Report -->
+        <div id="admin-tab-revenue" class="admin-tab-content">
+            <div class="data-table-container" id="admin-revenue-table-container"></div>
+        </div>
+
+        <!-- Admin Tab 4: Relational Database Inspector -->
+        <div id="admin-tab-relations" class="admin-tab-content">
+            <div id="admin-relations-container"></div>
+        </div>
+    </main>
+
+    <!-- ====================================================================
+         VIEW 6: ACADEMIC SQL QUERY SANDBOX (18 DA2 Queries)
+         ==================================================================== -->
+    <main id="view-sql-sandbox" class="main-content" style="display: none; padding-top: 2rem;">
+        <div class="section-header">
+            <div>
+                <h2 class="section-title">Academic SQL Query Sandbox (DA2 Report)</h2>
+                <p style="color: var(--text-muted); font-size: 0.88rem; margin-top: 0.25rem;">
+                    Execute all 18 academic SQL queries against the live BCNF database state with execution profiling.
+                </p>
+            </div>
+        </div>
+
+        <div class="query-sandbox-card">
+            <label for="academic-query-dropdown" style="display: block; font-size: 0.82rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; margin-bottom: 0.6rem; letter-spacing: 0.5px;">
+                Select Academic Query to Execute:
+            </label>
+            <select id="academic-query-dropdown" class="query-selector-select" aria-label="Select query">
+                <!-- Populated dynamically by js/admin.js -->
+            </select>
+
+            <div style="background: var(--bg-surface-elevated); border: var(--glass-border); border-radius: var(--radius-md); padding: 1.25rem; margin-bottom: 1.5rem;">
+                <h3 id="sandbox-query-title" style="font-family: var(--font-heading); font-size: 1.3rem; color: var(--text-pure); margin-bottom: 0.35rem;"></h3>
+                <div id="sandbox-query-concept" style="font-size: 0.85rem; color: var(--accent-cyan); font-weight: 700; margin-bottom: 0.5rem;"></div>
+                <p id="sandbox-query-desc" style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5;"></p>
+            </div>
+
+            <div style="margin-bottom: 0.75rem; display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
+                    SQL DML / DQL Syntax:
+                </span>
+                <button class="btn-primary" style="padding: 0.45rem 1.1rem; font-size: 0.85rem;" onclick="window.MTRSAdmin.runSelectedQuery()">
+                    ▶ Execute Query Live
+                </button>
+            </div>
+
+            <pre id="sandbox-sql-code" class="sql-code-block"></pre>
+
+            <div id="sandbox-query-results">
+                <!-- Query execution results table rendered here -->
+            </div>
+        </div>
+    </main>
+
+    <!-- ====================================================================
+         FLOATING BOOKING DOCK (Appears when seats are selected)
+         ==================================================================== -->
+    <div id="floating-booking-dock" class="booking-dock">
+        <div class="dock-left">
+            <div class="dock-seats-label">Selected Seats</div>
+            <div class="dock-selected-pills" id="dock-selected-pills"></div>
+        </div>
+
+        <div class="dock-right">
+            <div class="dock-total-box">
+                <div class="dock-total-label">Subtotal</div>
+                <div class="dock-total-amount" id="dock-total-amount">₹0.00</div>
+            </div>
+            <button class="btn-primary" id="dock-proceed-btn">
+                Proceed to Checkout →
+            </button>
+        </div>
+    </div>
+
+    <!-- ====================================================================
+         CHECKOUT & PAYMENT MODAL
+         ==================================================================== -->
+    <div id="checkout-modal" class="modal-backdrop">
+        <div class="modal-box">
+            <button class="modal-close-btn" onclick="window.App.closeCheckoutModal()">✕</button>
+            
+            <h3 style="font-family: var(--font-heading); font-size: 1.5rem; color: var(--text-pure); margin-bottom: 0.25rem;">
+                Checkout &amp; Payment Confirmation
+            </h3>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.5rem;">
+                Invokes atomic database transaction (<code>sp_BookTicketTransaction</code>).
+            </p>
+
+            <div style="background: var(--bg-surface-elevated); border: var(--glass-border); border-radius: var(--radius-md); padding: 1.25rem; margin-bottom: 1.5rem;">
+                <div style="font-family: var(--font-heading); font-size: 1.2rem; font-weight: 800; color: var(--text-pure);" id="checkout-movie-title"></div>
+                <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 2px;" id="checkout-theater-info"></div>
+                <div style="font-size: 0.85rem; color: var(--accent-cyan); font-weight: 600; margin-top: 2px;" id="checkout-show-time"></div>
+                <div style="font-size: 0.9rem; color: var(--accent-gold); font-weight: 700; margin-top: 0.5rem;">
+                    Seats: <span id="checkout-seats-list"></span>
+                </div>
+            </div>
+
+            <!-- Price Breakdown -->
+            <div style="margin-bottom: 1.5rem; font-size: 0.9rem;">
+                <div style="display: flex; justify-content: space-between; padding: 0.4rem 0; color: var(--text-secondary);">
+                    <span>Ticket Base Fare</span>
+                    <span id="checkout-subtotal">₹0.00</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 0.4rem 0; color: var(--text-secondary);">
+                    <span>Convenience Fee (Fixed)</span>
+                    <span id="checkout-conv-fee">₹30.00</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 0.4rem 0; color: var(--text-secondary);">
+                    <span>Integrated GST (18%)</span>
+                    <span id="checkout-gst">₹0.00</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 0.75rem 0 0; margin-top: 0.5rem; border-top: 1px dashed rgba(255, 255, 255, 0.15); font-family: var(--font-heading); font-size: 1.3rem; font-weight: 900; color: var(--text-pure);">
+                    <span>Grand Total</span>
+                    <span id="checkout-grand-total" style="color: var(--accent-gold);">₹0.00</span>
+                </div>
+            </div>
+
+            <!-- Form Inputs -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.75rem;">
+                <div>
+                    <label for="checkout-customer-select" style="display: block; font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; margin-bottom: 0.35rem;">
+                        Customer Account:
+                    </label>
+                    <select id="checkout-customer-select" class="query-selector-select" style="margin-bottom: 0; padding: 0.6rem 0.85rem; font-size: 0.88rem;"></select>
+                </div>
+                <div>
+                    <label for="checkout-payment-mode" style="display: block; font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; margin-bottom: 0.35rem;">
+                        Payment Mode:
+                    </label>
+                    <select id="checkout-payment-mode" class="query-selector-select" style="margin-bottom: 0; padding: 0.6rem 0.85rem; font-size: 0.88rem;">
+                        <option value="UPI">UPI (GooglePay / PhonePe)</option>
+                        <option value="Credit Card">Credit Card</option>
+                        <option value="Debit Card">Debit Card</option>
+                        <option value="Net Banking">Net Banking</option>
+                        <option value="Cash">Cash at Counter</option>
+                    </select>
+                </div>
+            </div>
+
+            <button class="btn-primary" style="width: 100%; justify-content: center; padding: 0.95rem;" onclick="window.App.confirmBookingAndPay()">
+                🔒 Confirm &amp; Commit Transaction
+            </button>
+        </div>
+    </div>
+
+    <!-- ====================================================================
+         E-TICKET / BOARDING PASS MODAL
+         ==================================================================== -->
+    <div id="ticket-modal" class="modal-backdrop">
+        <div class="modal-box" style="max-width: 580px; padding: 1.5rem;">
+            <button class="modal-close-btn" onclick="window.App.closeTicketModal()">✕</button>
+            <div id="ticket-modal-content">
+                <!-- Rendered dynamically by window.App.openTicketModal() -->
+            </div>
+        </div>
+    </div>
+
+    <!-- ====================================================================
+         USER SWITCHER MODAL (Demo Customer Profiles)
+         ==================================================================== -->
+    <div id="user-modal" class="modal-backdrop">
+        <div class="modal-box" style="max-width: 480px;">
+            <button class="modal-close-btn" onclick="document.getElementById('user-modal').classList.remove('active')">✕</button>
+            <h3 style="font-family: var(--font-heading); font-size: 1.3rem; color: var(--text-pure); margin-bottom: 0.5rem;">
+                Select Active Customer
+            </h3>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.25rem;">
+                Switch between customers CU01-CU05 to test bookings and isolation.
+            </p>
+            <div id="user-list-container"></div>
+        </div>
+    </div>
+
+    <!-- ====================================================================
+         ADD NEW SHOW MODAL (Admin Schedule Manager)
+         ==================================================================== -->
+    <div id="add-show-modal" class="modal-backdrop">
+        <div class="modal-box" style="max-width: 520px;">
+            <button class="modal-close-btn" onclick="document.getElementById('add-show-modal').classList.remove('active')">✕</button>
+            <h3 style="font-family: var(--font-heading); font-size: 1.3rem; color: var(--text-pure); margin-bottom: 0.5rem;">
+                Schedule New Movie Show
+            </h3>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.25rem;">
+                Inserts into <code>SHOWS</code> relation with foreign key checks.
+            </p>
+
+            <div style="display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.5rem;">
+                <div>
+                    <label for="modal-new-show-movie" style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Movie:</label>
+                    <select id="modal-new-show-movie" class="query-selector-select" style="margin-bottom: 0;"></select>
+                </div>
+                <div>
+                    <label for="modal-new-show-screen" style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Theater Screen:</label>
+                    <select id="modal-new-show-screen" class="query-selector-select" style="margin-bottom: 0;"></select>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div>
+                        <label for="modal-new-show-date" style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Show Date:</label>
+                        <input type="date" id="modal-new-show-date" class="search-input" value="2026-10-21" style="padding-left: 1rem;">
+                    </div>
+                    <div>
+                        <label for="modal-new-show-time" style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Show Time:</label>
+                        <input type="time" id="modal-new-show-time" class="search-input" value="21:15" style="padding-left: 1rem;">
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div>
+                        <label for="modal-new-show-format" style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Format:</label>
+                        <select id="modal-new-show-format" class="query-selector-select" style="margin-bottom: 0;">
+                            <option value="2D">2D</option>
+                            <option value="3D">3D</option>
+                            <option value="IMAX 2D">IMAX 2D</option>
+                            <option value="IMAX 3D">IMAX 3D</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="modal-new-show-price" style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Base Price (₹):</label>
+                        <input type="number" id="modal-new-show-price" class="search-input" value="350" min="50" style="padding-left: 1rem;">
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn-primary" style="width: 100%; justify-content: center;" onclick="window.MTRSAdmin.saveNewShow()">
+                Confirm &amp; Insert Show
+            </button>
+        </div>
+    </div>
+
+    <!-- Scripts (In Dependency Order) -->
+    <script src="assets/posters.js"></script>
+    <script src="js/db-data.js"></script>
+    <script src="js/db-engine.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/admin.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,452 @@
+/* ============================================================================
+   MOVIE TICKET RESERVATION SYSTEM (MTRS)
+   Seat Layout, Cinema Projection Screen & E-Ticket Boarding Pass Styles
+   ============================================================================ */
+
+.seat-layout-view {
+    display: none;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1rem 1rem 8rem;
+}
+
+.seat-layout-view.active {
+    display: block;
+}
+
+/* Header summary inside seat layout */
+.seat-show-header {
+    background: var(--bg-surface);
+    border: var(--glass-border);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.seat-movie-title {
+    font-family: var(--font-heading);
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--text-pure);
+}
+
+.seat-theater-meta {
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+}
+
+/* ============================================================================
+   CINEMA SCREEN VISUALIZATION
+   ============================================================================ */
+.cinema-screen-container {
+    perspective: 800px;
+    margin: 2.5rem auto 3.5rem;
+    text-align: center;
+    max-width: 750px;
+}
+
+.cinema-screen-curve {
+    width: 100%;
+    height: 38px;
+    background: linear-gradient(to bottom, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0.05));
+    border-top: 3px solid rgba(255, 255, 255, 0.85);
+    border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+    box-shadow: 0 -12px 35px rgba(255, 255, 255, 0.25), 0 0 50px rgba(0, 229, 255, 0.15);
+    position: relative;
+    transform: rotateX(-12deg);
+}
+
+.screen-text {
+    font-family: var(--font-heading);
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 5px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-top: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+}
+
+.screen-text::before, .screen-text::after {
+    content: '';
+    width: 40px;
+    height: 1px;
+    background: var(--border-subtle);
+}
+
+/* ============================================================================
+   SEAT TIERS & GRID
+   ============================================================================ */
+.seat-map-wrapper {
+    background: var(--bg-surface);
+    border: var(--glass-border);
+    border-radius: var(--radius-xl);
+    padding: 2.5rem 2rem;
+    margin-bottom: 2rem;
+    box-shadow: var(--shadow-soft);
+}
+
+.seat-tier-section {
+    margin-bottom: 2rem;
+}
+
+.seat-tier-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.tier-name {
+    font-family: var(--font-heading);
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-pure);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.tier-name .tier-badge {
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.tier-badge.vip { background: rgba(255, 184, 0, 0.18); color: var(--accent-gold); border: 1px solid rgba(255, 184, 0, 0.3); }
+.tier-badge.balcony { background: rgba(0, 229, 255, 0.18); color: var(--accent-cyan); border: 1px solid rgba(0, 229, 255, 0.3); }
+.tier-badge.premium { background: rgba(139, 92, 246, 0.18); color: var(--accent-purple); border: 1px solid rgba(139, 92, 246, 0.3); }
+.tier-badge.regular { background: rgba(255, 255, 255, 0.08); color: var(--text-secondary); border: 1px solid var(--border-subtle); }
+
+.tier-price {
+    font-family: var(--font-heading);
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+/* Rows & Grid */
+.seat-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.row-label {
+    width: 28px;
+    text-align: center;
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.seat-cluster {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+}
+
+/* Seat Element */
+.seat {
+    width: 36px;
+    height: 34px;
+    border-radius: 6px 6px 4px 4px;
+    border: 1.5px solid rgba(255, 255, 255, 0.22);
+    background: var(--bg-surface-elevated);
+    color: var(--text-primary);
+    font-size: 0.72rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: var(--transition);
+    position: relative;
+    user-select: none;
+}
+
+.seat::after {
+    content: '';
+    position: absolute;
+    bottom: -3px;
+    width: 70%;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+}
+
+.seat:hover:not(.booked):not(.selected) {
+    border-color: var(--accent-cyan);
+    transform: translateY(-3px) scale(1.08);
+    box-shadow: 0 4px 12px rgba(0, 229, 255, 0.25);
+    background: var(--bg-surface-high);
+}
+
+/* Selected Seat State */
+.seat.selected {
+    background: var(--primary);
+    border-color: var(--primary-hover);
+    color: #fff;
+    transform: translateY(-2px);
+    box-shadow: 0 0 16px var(--primary-glow);
+    animation: seatPulsate 1.8s infinite;
+}
+
+.seat.selected::after {
+    background: #fff;
+}
+
+@keyframes seatPulsate {
+    0%, 100% { box-shadow: 0 0 12px var(--primary-glow); }
+    50% { box-shadow: 0 0 22px var(--primary-glow-strong); }
+}
+
+/* Booked Seat State */
+.seat.booked {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.05);
+    color: var(--text-disabled);
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.seat.booked::after {
+    display: none;
+}
+
+/* Seat Legend */
+.seat-legend {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    flex-wrap: wrap;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+}
+
+.legend-box {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+}
+
+.legend-box.available {
+    background: var(--bg-surface-elevated);
+    border: 1.5px solid rgba(255, 255, 255, 0.22);
+}
+
+.legend-box.selected {
+    background: var(--primary);
+    border: 1.5px solid var(--primary-hover);
+    box-shadow: 0 0 8px var(--primary-glow);
+}
+
+.legend-box.booked {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1.5px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ============================================================================
+   BOTTOM BOOKING ACTION BAR (Floating Dock)
+   ============================================================================ */
+.booking-dock {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(16, 23, 42, 0.92);
+    backdrop-filter: blur(20px);
+    border-top: var(--glass-border);
+    padding: 1.25rem 2.5rem;
+    z-index: 1000;
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2rem;
+    transform: translateY(100%);
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.booking-dock.visible {
+    transform: translateY(0);
+}
+
+.dock-left {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.dock-seats-label {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.dock-selected-pills {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+}
+
+.selected-seat-chip {
+    background: rgba(229, 9, 20, 0.2);
+    border: 1px solid var(--primary);
+    color: #fff;
+    padding: 0.25rem 0.65rem;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 0.85rem;
+}
+
+.dock-right {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+}
+
+.dock-total-box {
+    text-align: right;
+}
+
+.dock-total-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.dock-total-amount {
+    font-family: var(--font-heading);
+    font-size: 1.7rem;
+    font-weight: 900;
+    color: var(--text-pure);
+}
+
+/* ============================================================================
+   E-TICKET / BOARDING PASS STYLES
+   ============================================================================ */
+.ticket-pass {
+    background: linear-gradient(135deg, #162038 0%, #0d1322 100%);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    box-shadow: 0 20px 45px rgba(0,0,0,0.7), 0 0 30px rgba(229, 9, 20, 0.2);
+    position: relative;
+}
+
+.ticket-header {
+    background: linear-gradient(135deg, var(--primary), #800000);
+    padding: 1.5rem 2rem;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.ticket-badge-confirmed {
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(4px);
+    padding: 0.3rem 0.75rem;
+    border-radius: var(--radius-full);
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.ticket-body {
+    padding: 2rem;
+}
+
+.ticket-movie-title {
+    font-family: var(--font-heading);
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: var(--text-pure);
+    margin-bottom: 0.25rem;
+}
+
+.ticket-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+    margin: 1.5rem 0;
+    padding: 1.25rem 0;
+    border-top: 1px dashed rgba(255, 255, 255, 0.15);
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.15);
+}
+
+.ticket-item-label {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.2rem;
+}
+
+.ticket-item-value {
+    font-family: var(--font-heading);
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.ticket-item-value.seats-highlight {
+    color: var(--accent-gold);
+    font-size: 1.2rem;
+}
+
+.ticket-qr-area {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    padding-top: 0.5rem;
+}
+
+.ticket-qr-box {
+    width: 90px;
+    height: 90px;
+    background: #fff;
+    border-radius: var(--radius-md);
+    padding: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.qr-code-svg {
+    width: 100%;
+    height: 100%;
+}
