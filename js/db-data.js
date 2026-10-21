@@ -79,12 +79,12 @@ const SEED_DATA = {
     ],
 
     MOVIE: [
-        { Movie_ID: 'M01', Movie_Name: 'Superman: Legacy', Genre: 'Action/Sci-Fi', Rating: 8.6, Duration: 150, Language: 'English', Synopsis: 'The iconic hero reconciles his Kryptonian heritage with his human upbringing, standing as the embodiment of truth, justice, and tomorrow.', Cast: 'David Corenswet, Rachel Brosnahan, Nicholas Hoult' },
+        { Movie_ID: 'M01', Movie_Name: 'Superman', Genre: 'Action/Sci-Fi', Rating: 8.6, Duration: 150, Language: 'English', Synopsis: 'Superman reconciles his Kryptonian heritage with his human upbringing as Clark Kent, standing as the embodiment of truth, justice, and tomorrow.', Cast: 'David Corenswet, Rachel Brosnahan, Nicholas Hoult' },
         { Movie_ID: 'M02', Movie_Name: 'Heat', Genre: 'Action/Crime', Rating: 8.3, Duration: 170, Language: 'English', Synopsis: 'A group of high-end professional thieves start to feel the heat from the LAPD when a loose clue is left at their latest heist.', Cast: 'Al Pacino, Robert De Niro, Val Kilmer' },
-        { Movie_ID: 'M03', Movie_Name: 'La La Land', Genre: 'Musical/Romance', Rating: 8.0, Duration: 128, Language: 'English', Synopsis: 'While navigating their careers in Los Angeles, a pianist and an actress fall in love while attempting to reconcile their aspirations for the future.', Cast: 'Ryan Gosling, Emma Stone, John Legend' },
-        { Movie_ID: 'M04', Movie_Name: 'Interstellar', Genre: 'Sci-Fi/Adventure', Rating: 8.7, Duration: 169, Language: 'English', Synopsis: 'When Earth becomes uninhabitable in the future, a farmer and ex-NASA pilot, Joseph Cooper, is tasked to pilot a spacecraft along with a team of researchers.', Cast: 'Matthew McConaughey, Anne Hathaway, Jessica Chastain' },
-        { Movie_ID: 'M05', Movie_Name: 'Dune: Part Two', Genre: 'Sci-Fi/Action', Rating: 8.8, Duration: 166, Language: 'English', Synopsis: 'Paul Atreides unites with Chani and the Fremen while seeking revenge against the conspirators who destroyed his family.', Cast: 'Timothée Chalamet, Zendaya, Rebecca Ferguson' },
-        { Movie_ID: 'M06', Movie_Name: 'Kantara: Chapter 1', Genre: 'Action/Thriller', Rating: 8.4, Duration: 148, Language: 'Kannada', Synopsis: 'A human and nature conflict set in the sacred coastal forests where divinity, legends, and raw folklore collide.', Cast: 'Rishab Shetty, Sapthami Gowda, Kishore' }
+        { Movie_ID: 'M03', Movie_Name: 'La La Land', Genre: 'Musical/Romance', Rating: 8.0, Duration: 128, Language: 'English', Synopsis: 'While navigating their careers in Los Angeles, a jazz pianist and an aspiring actress fall in love while attempting to reconcile their artistic dreams.', Cast: 'Ryan Gosling, Emma Stone, John Legend' },
+        { Movie_ID: 'M04', Movie_Name: 'The Odyssey', Genre: 'Sci-Fi/Adventure', Rating: 8.7, Duration: 169, Language: 'English', Synopsis: 'Christopher Nolan\'s sweeping, 70mm large-format epic chronicling humanity\'s ancient voyages across uncharted cosmic boundaries and gravitational singularities.', Cast: 'Cillian Murphy, Anne Hathaway, Matt Damon' },
+        { Movie_ID: 'M05', Movie_Name: 'Dune: Part Three', Genre: 'Sci-Fi/Action', Rating: 8.8, Duration: 166, Language: 'English', Synopsis: 'Paul Atreides consolidates his empire across Arrakis, confronting the perils of prophetic messianism and universal holy war.', Cast: 'Timothée Chalamet, Zendaya, Florence Pugh' },
+        { Movie_ID: 'M06', Movie_Name: 'Avengers: Doomsday', Genre: 'Action/Sci-Fi', Rating: 8.4, Duration: 155, Language: 'English', Synopsis: 'Earth\'s mightiest heroes collide with the sinister intellect of Victor Von Doom in a colossal battle across fractured dimensional timelines.', Cast: 'Robert Downey Jr., Benedict Cumberbatch, Anthony Mackie' }
     ],
 
     SHOWS: [
@@ -580,24 +580,29 @@ function generateAuditoriumSeats(screen, existingSeeds = []) {
         });
     }
 
-    // Proportional tier distribution across numRows:
-    // VIP: ~12-15% (at least 1-2 rows)
-    // Balcony: ~20-25%
-    // Premium: ~35-40%
-    // Regular: remaining rows
-    const vipEnd = Math.max(1, Math.round(numRows * 0.15));
-    const balconyEnd = Math.max(vipEnd + 1, Math.round(numRows * 0.40));
-    const premiumEnd = Math.max(balconyEnd + 1, Math.round(numRows * 0.75));
+    // Physical Row Position & Pricing Hierarchy:
+    // Screen is at the FRONT (Row A is physically closest to the screen, cheapest)
+    // Front rows (0 to regularEnd): 'Regular' (Classic / Standard - Lowest Price)
+    // Middle rows (regularEnd to premiumEnd): 'Premium' (Executive - Moderate Price)
+    // Rear rows (premiumEnd to balconyEnd): 'Balcony' (Prime / Superior - High Price)
+    // Rearmost rows (balconyEnd to numRows): 'VIP' (Luxury Recliners - Highest Price)
+    const regularEnd = Math.max(1, Math.round(numRows * 0.28));
+    const premiumEnd = Math.max(regularEnd + 1, Math.round(numRows * 0.62));
+    const balconyEnd = Math.max(premiumEnd + 1, Math.round(numRows * 0.88));
 
     const seats = [];
     let count = 0;
 
     for (let r = 0; r < numRows && count < capacity; r++) {
         const rowLetter = rowLabels[r];
-        let tier = 'Regular';
-        if (r < vipEnd) tier = 'VIP';
-        else if (r < balconyEnd) tier = 'Balcony';
-        else if (r < premiumEnd) tier = 'Premium';
+        let tier = 'VIP'; // Rearmost rows
+        if (r < regularEnd) {
+            tier = 'Regular'; // Front rows closest to screen
+        } else if (r < premiumEnd) {
+            tier = 'Premium'; // Middle rows
+        } else if (r < balconyEnd) {
+            tier = 'Balcony'; // Rear rows
+        }
 
         const seatsInThisRow = Math.min(colsPerRow, capacity - count);
 

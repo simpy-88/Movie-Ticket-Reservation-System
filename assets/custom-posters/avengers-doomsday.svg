@@ -1,0 +1,47 @@
+<svg viewBox="0 0 500 750" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="doom-bg" cx="50%" cy="40%" r="65%">
+      <stop offset="0%" stop-color="#021c10"/>
+      <stop offset="35%" stop-color="#062e1c"/>
+      <stop offset="70%" stop-color="#0a1913"/>
+      <stop offset="100%" stop-color="#020805"/>
+    </radialGradient>
+    <linearGradient id="doom-mask" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#D4AF37"/>
+      <stop offset="40%" stop-color="#997A15"/>
+      <stop offset="70%" stop-color="#10B981"/>
+      <stop offset="100%" stop-color="#047857"/>
+    </linearGradient>
+    <radialGradient id="emerald-glow" cx="50%" cy="45%" r="50%">
+      <stop offset="0%" stop-color="rgba(16, 185, 129, 0.45)"/>
+      <stop offset="100%" stop-color="transparent"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="500" height="750" fill="url(#doom-bg)"/>
+  <circle cx="250" cy="310" r="190" fill="url(#emerald-glow)"/>
+
+  <!-- Latverian Crest & Doom Mask Silhouette -->
+  <g transform="translate(250, 290)">
+    <!-- Hood Drape -->
+    <path d="M-130,-120 C-60,-190 60,-190 130,-120 C160,20 150,150 110,210 C70,180 -70,180 -110,210 C-150,150 -160,20 -130,-120 Z" fill="#044728" opacity="0.95"/>
+    <!-- Iron Mask -->
+    <path d="M-80,-70 C-40,-100 40,-100 80,-70 C100,-10 90,80 50,130 C20,150 -20,150 -50,130 C-90,80 -100,-10 -80,-70 Z" fill="#1E293B" stroke="url(#doom-mask)" stroke-width="4"/>
+    <!-- Eye Slits glowing emerald -->
+    <path d="M-55,-25 L-20,-18 L-22,-8 L-55,-12 Z" fill="#10B981"/>
+    <path d="M55,-25 L20,-18 L22,-8 L55,-12 Z" fill="#10B981"/>
+    <!-- Riveted Mouth Grille -->
+    <rect x="-35" y="55" width="70" height="42" rx="4" fill="#0F172A" stroke="#475569" stroke-width="2"/>
+    <line x1="-20" y1="55" x2="-20" y2="97" stroke="#10B981" stroke-width="2.5"/>
+    <line x1="0" y1="55" x2="0" y2="97" stroke="#10B981" stroke-width="2.5"/>
+    <line x1="20" y1="55" x2="20" y2="97" stroke="#10B981" stroke-width="2.5"/>
+  </g>
+
+  <!-- Typography -->
+  <text x="250" y="65" font-family="'Outfit', sans-serif" font-weight="700" font-size="12" fill="#E2E8F0" text-anchor="middle" letter-spacing="6">MARVEL STUDIOS</text>
+  <rect y="570" width="500" height="180" fill="#020805" opacity="0.95"/>
+
+  <text x="250" y="625" font-family="'Outfit', sans-serif" font-weight="900" font-size="34" fill="#FFFFFF" text-anchor="middle" letter-spacing="6">AVENGERS</text>
+  <text x="250" y="655" font-family="'Outfit', sans-serif" font-weight="800" font-size="20" fill="#10B981" text-anchor="middle" letter-spacing="8">DOOMSDAY</text>
+  <text x="250" y="700" font-family="sans-serif" font-weight="600" font-size="10" fill="#94A3B8" text-anchor="middle" letter-spacing="4">DECEMBER 2026 • IN IMAX 3D</text>
+</svg>
