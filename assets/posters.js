@@ -58,11 +58,11 @@
             tmdbId: 949,
             director: 'Michael Mann',
             customPoster: '',
-            posterUrl: 'https://image.tmdb.org/t/p/w500/zMyfPUelumio3tiDKPffaUpsQTD.jpg',
-            posterHiRes: 'https://image.tmdb.org/t/p/w780/zMyfPUelumio3tiDKPffaUpsQTD.jpg',
+            posterUrl: 'https://a.ltrbxd.com/resized/film-poster/5/1/9/9/4/51994-heat-0-2000-0-3000-crop.jpg?v=54dce97dc6',
+            posterHiRes: 'https://a.ltrbxd.com/resized/film-poster/5/1/9/9/4/51994-heat-0-2000-0-3000-crop.jpg?v=54dce97dc6',
             backdropUrl: 'https://image.tmdb.org/t/p/w1280/eSVvx8xys2NuFhl8fevXt41wX7v.jpg',
-            sourcePage: 'https://www.themoviedb.org/movie/949-heat',
-            attribution: 'TMDb / Warner Bros. / Regency Enterprises',
+            sourcePage: 'https://letterboxd.com/film/heat/',
+            attribution: 'Letterboxd / Warner Bros. / Regency Enterprises',
             verificationStatus: 'Verified',
             fallbackSvg: `<svg viewBox="0 0 300 450" xmlns="http://www.w3.org/2000/svg" class="movie-svg-poster">
                 <defs>
@@ -153,11 +153,11 @@
             tmdbId: 693134,
             director: 'Denis Villeneuve',
             customPoster: '',
-            posterUrl: 'https://image.tmdb.org/t/p/w500/6izwz7rsy95ARzTR3poZ8H6c5pp.jpg',
-            posterHiRes: 'https://image.tmdb.org/t/p/w780/6izwz7rsy95ARzTR3poZ8H6c5pp.jpg',
+            posterUrl: 'https://a.ltrbxd.com/resized/film-poster/1/0/5/7/4/6/1/1057461-dune-part-three-0-2000-0-3000-crop.jpg?v=f577c5b9e7',
+            posterHiRes: 'https://a.ltrbxd.com/resized/film-poster/1/0/5/7/4/6/1/1057461-dune-part-three-0-2000-0-3000-crop.jpg?v=f577c5b9e7',
             backdropUrl: 'https://image.tmdb.org/t/p/w1280/xOMo8BRK7PfcJv9JCnx7s520QIq.jpg',
-            sourcePage: 'https://www.themoviedb.org/movie/693134-dune-part-two',
-            attribution: 'TMDb / Legendary Pictures / Warner Bros.',
+            sourcePage: 'https://letterboxd.com/film/dune-part-three/',
+            attribution: 'Letterboxd / Legendary Pictures / Warner Bros.',
             verificationStatus: 'Verified',
             fallbackSvg: `<svg viewBox="0 0 300 450" xmlns="http://www.w3.org/2000/svg" class="movie-svg-poster">
                 <defs>
@@ -182,12 +182,12 @@
             year: 2026,
             tmdbId: 1003596,
             director: 'Anthony & Joe Russo',
-            customPoster: 'assets/custom-posters/avengers-doomsday.svg',
-            posterUrl: 'https://image.tmdb.org/t/p/w500/y0L0mR3RkK3J0d86b9oF5b10F5.jpg',
-            posterHiRes: 'https://image.tmdb.org/t/p/w780/y0L0mR3RkK3J0d86b9oF5b10F5.jpg',
+            customPoster: '',
+            posterUrl: 'https://a.ltrbxd.com/resized/film-poster/9/0/3/8/8/9/903889-avengers-doomsday-0-2000-0-3000-crop.jpg?v=fbbc8d1f4f',
+            posterHiRes: 'https://a.ltrbxd.com/resized/film-poster/9/0/3/8/8/9/903889-avengers-doomsday-0-2000-0-3000-crop.jpg?v=fbbc8d1f4f',
             backdropUrl: 'https://image.tmdb.org/t/p/w1280/xOMo8BRK7PfcJv9JCnx7s520QIq.jpg',
-            sourcePage: 'https://www.themoviedb.org/movie/1003596-avengers-doomsday',
-            attribution: 'Marvel Studios / Walt Disney Studios',
+            sourcePage: 'https://letterboxd.com/film/avengers-doomsday/',
+            attribution: 'Letterboxd / Marvel Studios / Walt Disney Studios',
             verificationStatus: 'Verified',
             fallbackSvg: `<svg viewBox="0 0 300 450" xmlns="http://www.w3.org/2000/svg" class="movie-svg-poster">
                 <defs>
@@ -248,8 +248,9 @@
             if (this.registry[id]) return this.registry[id];
 
             // Title-based fuzzy fallback if ID does not match directly
-            if (typeof movieOrId === 'object' && movieOrId.Movie_Name) {
-                const cleanName = movieOrId.Movie_Name.toLowerCase().trim();
+            const queryName = typeof movieOrId === 'string' ? movieOrId : (movieOrId.Movie_Name || '');
+            if (queryName) {
+                const cleanName = queryName.toLowerCase().trim();
                 for (const key of Object.keys(this.registry)) {
                     const rec = this.registry[key];
                     if (rec.title.toLowerCase() === cleanName) return rec;
@@ -279,12 +280,20 @@
                 return rec.customPoster;
             }
 
-            // 3. Explicit Poster_URL on the movie record itself
+            // 3. Explicit Poster_URL on the movie record itself or database
             if (typeof movieOrId === 'object' && movieOrId.Poster_URL && movieOrId.Poster_URL.trim() !== '') {
                 return movieOrId.Poster_URL.trim();
             }
+            if (typeof movieOrId === 'string' && window.MTRSEngine) {
+                try {
+                    const dbMovie = window.MTRSEngine.getTable('MOVIE').find(m => m.Movie_ID === movieId);
+                    if (dbMovie && dbMovie.Poster_URL && dbMovie.Poster_URL.trim() !== '') {
+                        return dbMovie.Poster_URL.trim();
+                    }
+                } catch (e) {}
+            }
 
-            // 4. Verified TMDb CDN URL
+            // 4. Verified CDN URL
             if (rec) {
                 if (size === 'w780' && rec.posterHiRes) return rec.posterHiRes;
                 if (rec.posterUrl) return rec.posterUrl;
@@ -329,6 +338,7 @@
                         alt="${alt}" 
                         class="${className}" 
                         loading="lazy"
+                        referrerpolicy="no-referrer"
                         onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='block';"
                     />
                     <div class="poster-svg-fallback" style="display:none; width:100%; height:100%;">
