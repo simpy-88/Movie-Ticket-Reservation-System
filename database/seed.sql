@@ -57,11 +57,11 @@ INSERT INTO SCREEN (Screen_ID, Theater_ID, Screen_Number, Screen_Name, Screen_Ty
 ('SC17', 'T02', 8, 'Audi 8 (Luxe Atmos)', 'Luxe Atmos', 265, '4K Laser', 'Dolby Atmos', 'Published - Needs Confirmation'),
 ('SC18', 'T02', 9, 'Audi 9 (Luxe)', 'Luxe Standard', 240, '2K Laser', 'Dolby 7.1 Surround', 'Published - Needs Confirmation'),
 ('SC19', 'T02', 10, 'Audi 10 (Luxe)', 'Luxe Standard', 260, '2K Laser', 'Dolby 7.1 Surround', 'Published - Needs Confirmation'),
-('SC20', 'T02', 11, 'Audi 11 (IMAX Luxe)', 'IMAX Laser', 233, 'IMAX Laser Dual 4K', 'IMAX 12-Channel Sound', 'Verified');
+('SC20', 'T02', 11, 'Audi 11 (IMAX Luxe)', 'IMAX Laser', 320, 'IMAX Laser Dual 4K', 'IMAX 12-Channel Sound', 'Verified');
 
 -- C. PVR VR Chennai (10 Screens: SC21 to SC30)
 INSERT INTO SCREEN (Screen_ID, Theater_ID, Screen_Number, Screen_Name, Screen_Type, Capacity, Projection_Tech, Audio_Tech, Verification_Status) VALUES
-('SC21', 'T03', 1, 'P[XL] Flagship Auditorium', 'P[XL] Giant Screen', 475, 'Dual 4K RGB Laser', 'Dolby Atmos SLS', 'Verified'),
+('SC21', 'T03', 1, 'P[XL] Flagship Auditorium', 'P[XL] Giant Screen', 450, 'Dual 4K RGB Laser', 'Dolby Atmos SLS', 'Verified'),
 ('SC22', 'T03', 2, 'Audi 2', 'Standard', 170, '2K Laser', 'Dolby 7.1 Surround', 'Published - Unverified'),
 ('SC23', 'T03', 3, 'Audi 3', 'Standard', 364, '4K Xenon Digital', 'Dolby 7.1 Surround', 'Published - Unverified'),
 ('SC24', 'T03', 4, 'Audi 4', 'Dolby Atmos', 388, '4K Laser', 'Dolby Atmos', 'Published - Unverified'),

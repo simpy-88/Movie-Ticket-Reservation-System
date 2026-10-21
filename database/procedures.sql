@@ -4,6 +4,7 @@
 -- Description: Stored Procedures, Functions, and Triggers for business logic,
 --              concurrency protection (prevent double-booking), and transactions.
 -- Engine: MySQL 8.0+
+-- Enhanced for Chennai Destinations & PLF formats (IMAX, P[XL], BIGPIX).
 -- ============================================================================
 
 USE mtrs_db;
@@ -190,6 +191,7 @@ END$$
 -- ----------------------------------------------------------------------------
 -- PROCEDURE 3: sp_GetShowRevenueReport
 -- Objective: Generate comprehensive revenue report for all shows or specific movie.
+-- Includes auditorium name, screen type, and occupancy telemetry.
 -- ----------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS sp_GetShowRevenueReport$$
 CREATE PROCEDURE sp_GetShowRevenueReport(
@@ -201,6 +203,8 @@ BEGIN
         m.Movie_Name,
         t.Theater_Name,
         s.Screen_Number,
+        s.Screen_Name,
+        s.Screen_Type,
         sh.Show_Date,
         sh.Show_Time,
         sh.Format,
@@ -219,8 +223,8 @@ BEGIN
     LEFT JOIN PAYMENT p ON b.Booking_ID = p.Booking_ID
     WHERE (p_Movie_ID IS NULL OR p_Movie_ID = '' OR sh.Movie_ID = p_Movie_ID)
     GROUP BY 
-        sh.Show_ID, m.Movie_Name, t.Theater_Name, s.Screen_Number, 
-        sh.Show_Date, sh.Show_Time, sh.Format, sh.Ticket_Price, s.Capacity
+        sh.Show_ID, m.Movie_Name, t.Theater_Name, s.Screen_Number, s.Screen_Name,
+        s.Screen_Type, sh.Show_Date, sh.Show_Time, sh.Format, sh.Ticket_Price, s.Capacity
     ORDER BY Total_Revenue DESC, Occupancy_Rate DESC;
 END$$
 

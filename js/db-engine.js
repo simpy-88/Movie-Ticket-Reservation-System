@@ -3,11 +3,12 @@
 // File: js/db-engine.js
 // Description: Client-side Relational Database Engine with BCNF relations,
 //              Foreign Key integrity, CHECK constraints, Triggers, and Stored Procedures.
+// Sourced from 6 Primary Chennai Cinema Destinations across 49 Auditoriums.
 // ============================================================================
 
 class MTRSRelationalEngine {
     constructor() {
-        this.STORAGE_KEY = 'MTRS_DB_STORAGE_V1';
+        this.STORAGE_KEY = 'MTRS_DB_STORAGE_V3_CHENNAI';
         this.db = null;
         this.init();
     }
@@ -17,8 +18,17 @@ class MTRSRelationalEngine {
         if (stored) {
             try {
                 this.db = JSON.parse(stored);
+                // Ensure real screen capacities are synchronized
+                let changed = false;
+                if (Array.isArray(this.db.SCREEN)) {
+                    const sc20 = this.db.SCREEN.find(s => s.Screen_ID === 'SC20');
+                    if (sc20 && sc20.Capacity !== 320) { sc20.Capacity = 320; changed = true; }
+                    const sc21 = this.db.SCREEN.find(s => s.Screen_ID === 'SC21');
+                    if (sc21 && sc21.Capacity !== 450) { sc21.Capacity = 450; changed = true; }
+                }
+                if (changed) this.save();
             } catch (e) {
-                console.error("Failed to parse stored DB, resetting to seed:", e);
+                console.error("Failed to parse stored DB, resetting to Chennai seed:", e);
                 this.resetToSeed();
             }
         } else {
@@ -34,7 +44,7 @@ class MTRSRelationalEngine {
         // Deep clone seed data
         this.db = JSON.parse(JSON.stringify(window.SEED_DATA));
         this.save();
-        console.log("MTRS Database restored to default seed data.");
+        console.log("MTRS Database restored to default Chennai cinema seed data.");
     }
 
     // ------------------------------------------------------------------------
@@ -54,6 +64,7 @@ class MTRSRelationalEngine {
     /**
      * Stored Procedure: sp_CheckSeatAvailability
      * Returns full seat inventory for a show's screen with 'BOOKED' or 'AVAILABLE' status.
+     * Generates and respects recorded auditorium capacity with proportional tiers.
      */
     sp_CheckSeatAvailability(showId) {
         const show = this.getTable('SHOWS').find(s => s.Show_ID === showId);
@@ -61,8 +72,23 @@ class MTRSRelationalEngine {
             throw new Error(`Show '${showId}' not found in database.`);
         }
 
-        // Get all seats on this screen
-        const screenSeats = this.getTable('SEAT').filter(st => st.Screen_ID === show.Screen_ID);
+        const screen = this.getTable('SCREEN').find(sc => sc.Screen_ID === show.Screen_ID);
+        if (!screen) {
+            throw new Error(`Screen '${show.Screen_ID}' not found in database.`);
+        }
+
+        // Get all seats registered for this screen
+        let screenSeats = this.getTable('SEAT').filter(st => st.Screen_ID === show.Screen_ID);
+
+        // Dynamically build rows (VIP, Balcony, Premium, Regular) matching screen.Capacity
+        if (screenSeats.length < screen.Capacity && typeof window.generateAuditoriumSeats === 'function') {
+            const fullSeats = window.generateAuditoriumSeats(screen, screenSeats);
+            if (fullSeats.length > 0) {
+                this.db.SEAT = this.db.SEAT.filter(st => st.Screen_ID !== screen.Screen_ID).concat(fullSeats);
+                this.save();
+                screenSeats = fullSeats;
+            }
+        }
 
         // Find all bookings for this show
         const showBookings = this.getTable('BOOKING').filter(b => b.Show_ID === showId);
@@ -107,7 +133,7 @@ class MTRSRelationalEngine {
         if (!show) throw new Error(`Integrity Error: Show '${showId}' does not exist.`);
 
         // 2. Validate CHECK Constraints
-        const validFormats = ['2D', '3D', 'IMAX 2D', 'IMAX 3D'];
+        const validFormats = ['2D', '3D', 'IMAX 2D', 'IMAX 3D', 'P[XL] 2D', 'P[XL] 3D', 'BIGPIX 2D', 'BIGPIX 3D'];
         if (!validFormats.includes(format)) {
             throw new Error(`Check Constraint Violation: Format '${format}' is invalid.`);
         }
@@ -215,7 +241,7 @@ class MTRSRelationalEngine {
         // Delete from PAYMENT
         this.db.PAYMENT = this.db.PAYMENT.filter(p => p.Booking_ID !== bookingId);
 
-        // Delete from BOOKED_SEAT (frees seats)
+        // Delete from BOOKED_SEAT (frees seats immediately)
         this.db.BOOKED_SEAT = this.db.BOOKED_SEAT.filter(bs => bs.Booking_ID !== bookingId);
 
         // Delete from BOOKING
@@ -227,6 +253,7 @@ class MTRSRelationalEngine {
 
     /**
      * Stored Procedure: sp_GetShowRevenueReport
+     * Returns movie title, theater, screen name, type, occupancy %, and total revenue.
      */
     sp_GetShowRevenueReport(movieId = null) {
         const shows = this.getTable('SHOWS');
@@ -260,6 +287,8 @@ class MTRSRelationalEngine {
                 Movie_Name: movie.Movie_Name,
                 Theater_Name: theater.Theater_Name,
                 Screen_Number: screen.Screen_Number,
+                Screen_Name: screen.Screen_Name || `Screen ${screen.Screen_Number}`,
+                Screen_Type: screen.Screen_Type || 'Standard',
                 Format: show.Format,
                 Show_Date: show.Show_Date,
                 Show_Time: show.Show_Time,
@@ -275,7 +304,7 @@ class MTRSRelationalEngine {
 
     // ------------------------------------------------------------------------
     // ACADEMIC SQL QUERY RUNNER ENGINE
-    // Executes any of the 18 DA2 Academic Queries on the relational state
+    // Executes any of the 18 DA2 Academic Queries on the live Chennai relational state
     // ------------------------------------------------------------------------
     runAcademicQuery(queryId) {
         const qId = parseInt(queryId, 10);
@@ -302,15 +331,15 @@ class MTRSRelationalEngine {
                 break;
             }
             case 2: {
-                // Q2: PVR Cinemas shows
-                result.columns = ['Theater_Name', 'Screen_Number', 'Screen_Type', 'Movie_Name', 'Show_Date', 'Show_Time', 'Format', 'Ticket_Price'];
+                // Q2: PVR Palazzo Chennai shows with technical telemetry
+                result.columns = ['Theater_Name', 'Screen_#', 'Screen_Name', 'Screen_Type', 'Projection', 'Audio', 'Movie_Name', 'Show_Date', 'Time', 'Format', 'Price'];
                 const rows = [];
                 shows.forEach(sh => {
                     const sc = screens.find(s => s.Screen_ID === sh.Screen_ID);
                     const th = theaters.find(t => t.Theater_ID === sc.Theater_ID);
                     const mv = movies.find(m => m.Movie_ID === sh.Movie_ID);
-                    if (th && th.Theater_Name.includes('PVR Cinemas')) {
-                        rows.push([th.Theater_Name, sc.Screen_Number, sc.Screen_Type, mv.Movie_Name, sh.Show_Date, sh.Show_Time, sh.Format, `₹${sh.Ticket_Price}`]);
+                    if (th && th.Theater_Name.includes('PVR Palazzo')) {
+                        rows.push([th.Theater_Name, sc.Screen_Number, sc.Screen_Name, sc.Screen_Type, sc.Projection_Tech, sc.Audio_Tech, mv.Movie_Name, sh.Show_Date, sh.Show_Time, sh.Format, `₹${sh.Ticket_Price}`]);
                     }
                 });
                 result.rows = rows;
@@ -330,7 +359,7 @@ class MTRSRelationalEngine {
             }
             case 4: {
                 // Q4: Theaters where avg ticket price > overall avg
-                const overallAvg = shows.reduce((sum, s) => sum + s.Ticket_Price, 0) / shows.length;
+                const overallAvg = shows.reduce((sum, s) => sum + s.Ticket_Price, 0) / (shows.length || 1);
                 result.columns = ['Theater_ID', 'Theater_Name', 'City', 'Avg_Theater_Price (₹)', 'Overall_Avg (₹)'];
                 result.rows = theaters.map(th => {
                     const thScreens = screens.filter(sc => sc.Theater_ID === th.Theater_ID).map(sc => sc.Screen_ID);
@@ -353,7 +382,7 @@ class MTRSRelationalEngine {
                 break;
             }
             case 6: {
-                // Q6: 5-Table join for Show SH01
+                // Q6: 5-Table join for Show SH01 (Palazzo IMAX)
                 result.columns = ['Show_ID', 'Movie_Name', 'Seat_Number', 'Seat_Type', 'Customer_Name', 'Email', 'Booking_ID', 'Booking_Date'];
                 const rows = [];
                 const sh01Bookings = bookings.filter(b => b.Show_ID === 'SH01');
@@ -397,19 +426,19 @@ class MTRSRelationalEngine {
             }
             case 9: {
                 // Q9: Shows with zero bookings
-                result.columns = ['Show_ID', 'Movie_Name', 'Theater_Name', 'Show_Date', 'Show_Time', 'Format', 'Ticket_Price'];
+                result.columns = ['Show_ID', 'Movie_Name', 'Theater_Name', 'Screen_Name', 'Show_Date', 'Show_Time', 'Format', 'Ticket_Price'];
                 const bookedShowIds = new Set(bookings.map(b => b.Show_ID));
                 result.rows = shows.filter(sh => !bookedShowIds.has(sh.Show_ID)).map(sh => {
                     const sc = screens.find(s => s.Screen_ID === sh.Screen_ID);
                     const th = theaters.find(t => t.Theater_ID === sc.Theater_ID);
                     const mv = movies.find(m => m.Movie_ID === sh.Movie_ID);
-                    return [sh.Show_ID, mv.Movie_Name, th.Theater_Name, sh.Show_Date, sh.Show_Time, sh.Format, `₹${sh.Ticket_Price}`];
+                    return [sh.Show_ID, mv.Movie_Name, th.Theater_Name, sc.Screen_Name || `Screen ${sc.Screen_Number}`, sh.Show_Date, sh.Show_Time, sh.Format, `₹${sh.Ticket_Price}`];
                 });
                 break;
             }
             case 10: {
                 // Q10: Top 3 Highest Revenue Shows
-                result.columns = ['Show_ID', 'Movie_Name', 'Theater_Name', 'Format', 'Total_Seats_Sold', 'Total_Revenue'];
+                result.columns = ['Show_ID', 'Movie_Name', 'Theater_Name', 'Screen_Name', 'Format', 'Total_Seats_Sold', 'Total_Revenue'];
                 const showStats = shows.map(sh => {
                     const sc = screens.find(s => s.Screen_ID === sh.Screen_ID);
                     const th = theaters.find(t => t.Theater_ID === sc.Theater_ID);
@@ -418,22 +447,22 @@ class MTRSRelationalEngine {
                     const bIds = new Set(shBookings.map(b => b.Booking_ID));
                     const seatsSold = bookedSeats.filter(bs => bIds.has(bs.Booking_ID)).length;
                     const rev = payments.filter(p => bIds.has(p.Booking_ID)).reduce((sum, p) => sum + p.Amount, 0);
-                    return { id: sh.Show_ID, movie: mv.Movie_Name, theater: th.Theater_Name, format: sh.Format, seats: seatsSold, rev };
+                    return { id: sh.Show_ID, movie: mv.Movie_Name, theater: th.Theater_Name, screen: sc.Screen_Name || `Screen ${sc.Screen_Number}`, format: sh.Format, seats: seatsSold, rev };
                 }).sort((a, b) => b.rev - a.rev).slice(0, 3);
-                result.rows = showStats.map(s => [s.id, s.movie, s.theater, s.format, s.seats, `₹${s.rev.toFixed(2)}`]);
+                result.rows = showStats.map(s => [s.id, s.movie, s.theater, s.screen, s.format, s.seats, `₹${s.rev.toFixed(2)}`]);
                 break;
             }
             case 11: {
                 // Q11: Screen Capacity Utilization (%)
-                result.columns = ['Show_ID', 'Movie_Name', 'Screen_Number', 'Total_Capacity', 'Seats_Booked', 'Occupancy (%)'];
+                result.columns = ['Show_ID', 'Movie_Name', 'Screen_Name', 'Total_Capacity', 'Seats_Booked', 'Occupancy (%)'];
                 result.rows = shows.map(sh => {
                     const sc = screens.find(s => s.Screen_ID === sh.Screen_ID);
                     const mv = movies.find(m => m.Movie_ID === sh.Movie_ID);
                     const shBookings = bookings.filter(b => b.Show_ID === sh.Show_ID);
                     const bIds = new Set(shBookings.map(b => b.Booking_ID));
                     const seatsSold = bookedSeats.filter(bs => bIds.has(bs.Booking_ID)).length;
-                    const occ = ((seatsSold * 100.0) / sc.Capacity).toFixed(2);
-                    return [sh.Show_ID, mv.Movie_Name, sc.Screen_Number, sc.Capacity, seatsSold, `${occ}%`];
+                    const occ = ((seatsSold * 100.0) / (sc.Capacity || 1)).toFixed(2);
+                    return [sh.Show_ID, mv.Movie_Name, sc.Screen_Name || `Screen ${sc.Screen_Number}`, sc.Capacity, seatsSold, `${occ}%`];
                 }).sort((a, b) => parseFloat(b[5]) - parseFloat(a[5]));
                 break;
             }
@@ -455,9 +484,9 @@ class MTRSRelationalEngine {
                 break;
             }
             case 13: {
-                // Q13: Theater Show count and distinct genres
+                // Q13: Chennai Theater Show count and distinct genres
                 result.columns = ['Theater_Name', 'City', 'Total_Shows', 'Total_Movies_Screened', 'Distinct_Genres_Available'];
-                result.rows = theaters.map(th => {
+                result.rows = theaters.filter(t => t.City === 'Chennai').map(th => {
                     const thScreens = screens.filter(sc => sc.Theater_ID === th.Theater_ID).map(sc => sc.Screen_ID);
                     const thShows = shows.filter(sh => thScreens.includes(sh.Screen_ID));
                     const thMovieIds = new Set(thShows.map(sh => sh.Movie_ID));
@@ -467,14 +496,15 @@ class MTRSRelationalEngine {
                 break;
             }
             case 14: {
-                // Q14: IMAX format with price >= 400
-                result.columns = ['Show_ID', 'Movie_Name', 'Theater_Name', 'Format', 'Show_Date', 'Show_Time', 'Ticket_Price'];
-                result.rows = shows.filter(sh => (sh.Format === 'IMAX 2D' || sh.Format === 'IMAX 3D') && sh.Ticket_Price >= 400).map(sh => {
+                // Q14: PLF formats (IMAX, P[XL], BIGPIX) with price >= 380
+                result.columns = ['Show_ID', 'Movie_Name', 'Theater_Name', 'Screen_Name', 'Format', 'Show_Date', 'Time', 'Ticket_Price'];
+                const plfFormats = ['IMAX 2D', 'IMAX 3D', 'P[XL] 2D', 'P[XL] 3D', 'BIGPIX 2D', 'BIGPIX 3D'];
+                result.rows = shows.filter(sh => plfFormats.includes(sh.Format) && sh.Ticket_Price >= 380).map(sh => {
                     const sc = screens.find(s => s.Screen_ID === sh.Screen_ID);
                     const th = theaters.find(t => t.Theater_ID === sc.Theater_ID);
                     const mv = movies.find(m => m.Movie_ID === sh.Movie_ID);
-                    return [sh.Show_ID, mv.Movie_Name, th.Theater_Name, sh.Format, sh.Show_Date, sh.Show_Time, `₹${sh.Ticket_Price}`];
-                }).sort((a, b) => parseFloat(b[6].replace('₹', '')) - parseFloat(a[6].replace('₹', '')));
+                    return [sh.Show_ID, mv.Movie_Name, th.Theater_Name, sc.Screen_Name || `Screen ${sc.Screen_Number}`, sh.Format, sh.Show_Date, sh.Show_Time, `₹${sh.Ticket_Price}`];
+                }).sort((a, b) => parseFloat(b[7].replace('₹', '')) - parseFloat(a[7].replace('₹', '')));
                 break;
             }
             case 15: {
@@ -492,12 +522,12 @@ class MTRSRelationalEngine {
                 break;
             }
             case 16: {
-                // Q16: Max capacity screen per theater
-                result.columns = ['Theater_Name', 'Screen_ID', 'Screen_Number', 'Screen_Type', 'Capacity (Seats)'];
+                // Q16: Max capacity screen per Chennai theater
+                result.columns = ['Theater_Name', 'Screen_ID', 'Screen_Name', 'Screen_Type', 'Capacity (Seats)'];
                 result.rows = theaters.map(th => {
                     const thScreens = screens.filter(s => s.Theater_ID === th.Theater_ID);
                     const maxScreen = thScreens.reduce((max, s) => s.Capacity > max.Capacity ? s : max, thScreens[0]);
-                    return maxScreen ? [th.Theater_Name, maxScreen.Screen_ID, maxScreen.Screen_Number, maxScreen.Screen_Type, maxScreen.Capacity] : null;
+                    return maxScreen ? [th.Theater_Name, maxScreen.Screen_ID, maxScreen.Screen_Name || `Screen ${maxScreen.Screen_Number}`, maxScreen.Screen_Type, maxScreen.Capacity] : null;
                 }).filter(Boolean).sort((a, b) => b[4] - a[4]);
                 break;
             }
@@ -514,10 +544,10 @@ class MTRSRelationalEngine {
                 break;
             }
             case 18: {
-                // Q18: Relational Division - Customers who watched in EVERY theater in Bangalore
-                result.columns = ['Customer_ID', 'Customer_Name', 'Email', 'Bangalore_Theaters_Visited'];
-                const bngTheaters = theaters.filter(t => t.City === 'Bangalore');
-                const bngTheaterIds = new Set(bngTheaters.map(t => t.Theater_ID));
+                // Q18: Relational Division - Customers who watched in EVERY theater in Chennai
+                result.columns = ['Customer_ID', 'Customer_Name', 'Email', 'Chennai_Theaters_Visited'];
+                const chennaiTheaters = theaters.filter(t => t.City === 'Chennai');
+                const chennaiTheaterIds = new Set(chennaiTheaters.map(t => t.Theater_ID));
 
                 result.rows = customers.map(c => {
                     const cBookings = bookings.filter(b => b.Customer_ID === c.Customer_ID);
@@ -527,10 +557,9 @@ class MTRSRelationalEngine {
                         return sc ? sc.Theater_ID : null;
                     }).filter(Boolean));
 
-                    // Check if visitedTheaterIds contains all bngTheaterIds
-                    const visitedAll = [...bngTheaterIds].every(id => visitedTheaterIds.has(id));
+                    const visitedAll = [...chennaiTheaterIds].every(id => visitedTheaterIds.has(id));
                     if (visitedAll) {
-                        return [c.Customer_ID, c.Customer_Name, c.Email, `${visitedTheaterIds.size} / ${bngTheaterIds.size} (All)`];
+                        return [c.Customer_ID, c.Customer_Name, c.Email, `${visitedTheaterIds.size} / ${chennaiTheaterIds.size} (All 6 Theaters)`];
                     }
                     return null;
                 }).filter(Boolean);

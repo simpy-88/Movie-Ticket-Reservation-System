@@ -3,6 +3,7 @@
 // File: js/admin.js
 // Description: Admin Panel controller, Show Schedule management, Screen capacity,
 //              Relational Table Inspector, and Academic SQL Query Sandbox (DA2).
+// Sourced from 6 Primary Chennai Cinema Destinations across 49 Auditoriums.
 // ============================================================================
 
 class MTRSAdminPanel {
@@ -90,8 +91,11 @@ class MTRSAdminPanel {
         const theaters = this.engine.getTable('THEATER');
 
         container.innerHTML = `
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
-                <h4 style="color: var(--text-pure); font-size: 1.1rem;">Scheduled Movie Shows (${shows.length})</h4>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.75rem;">
+                <div>
+                    <h4 style="color: var(--text-pure); font-size: 1.1rem;">Scheduled Movie Shows (${shows.length})</h4>
+                    <p style="color: var(--text-muted); font-size: 0.82rem;">Across 6 Chennai Cinema Multiplexes</p>
+                </div>
                 <button class="btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem;" onclick="window.MTRSAdmin.openAddShowModal()">
                     + Add New Show
                 </button>
@@ -102,7 +106,8 @@ class MTRSAdminPanel {
                     <tr>
                         <th>Show ID</th>
                         <th>Movie</th>
-                        <th>Theater & Screen</th>
+                        <th>Theater Destination</th>
+                        <th>Auditorium</th>
                         <th>Date & Time</th>
                         <th>Format</th>
                         <th>Ticket Price</th>
@@ -119,7 +124,8 @@ class MTRSAdminPanel {
                             <tr>
                                 <td><strong style="color: var(--accent-cyan);">${show.Show_ID}</strong></td>
                                 <td style="color: var(--text-pure); font-weight: 600;">${movie.Movie_Name || show.Movie_ID}</td>
-                                <td>${theater.Theater_Name || ''} (Screen ${screen.Screen_Number || ''})</td>
+                                <td>${theater.Theater_Name || ''}</td>
+                                <td><span style="color: var(--accent-gold); font-weight: 600;">${screen.Screen_Name || `Screen ${screen.Screen_Number}`}</span> (${screen.Audio_Tech || '7.1'})</td>
                                 <td>${show.Show_Date} at ${show.Show_Time.substring(0, 5)}</td>
                                 <td><span class="card-format-tag">${show.Format}</span></td>
                                 <td style="color: var(--accent-gold); font-weight: 700;">₹${show.Ticket_Price}</td>
@@ -157,7 +163,7 @@ class MTRSAdminPanel {
         if (screenSelect) {
             screenSelect.innerHTML = screens.map(s => {
                 const th = theaters.find(t => t.Theater_ID === s.Theater_ID) || {};
-                return `<option value="${s.Screen_ID}">${th.Theater_Name} - Screen ${s.Screen_Number} (${s.Screen_Type})</option>`;
+                return `<option value="${s.Screen_ID}">${th.Theater_Name} — ${s.Screen_Name || `Screen ${s.Screen_Number}`} (${s.Screen_Type})</option>`;
             }).join('');
         }
 
@@ -226,7 +232,7 @@ class MTRSAdminPanel {
     }
 
     // ------------------------------------------------------------------------
-    // TAB 2: SCREEN CAPACITY MANAGER
+    // TAB 2: SCREEN CAPACITY & TELEMETRY MANAGER (49 Screens)
     // ------------------------------------------------------------------------
     renderScreensTable() {
         const container = document.getElementById('admin-screens-table-container');
@@ -234,42 +240,49 @@ class MTRSAdminPanel {
 
         const screens = this.engine.getTable('SCREEN');
         const theaters = this.engine.getTable('THEATER');
-        const seats = this.engine.getTable('SEAT');
 
         container.innerHTML = `
             <div style="margin-bottom: 1.25rem;">
-                <h4 style="color: var(--text-pure); font-size: 1.1rem;">Screens and Seating Capacities</h4>
-                <p style="color: var(--text-muted); font-size: 0.85rem;">CHECK constraint enforces: Capacity &gt; 0.</p>
+                <h4 style="color: var(--text-pure); font-size: 1.1rem;">Auditorium Telemetry & Seating Capacities (${screens.length} Screens)</h4>
+                <p style="color: var(--text-muted); font-size: 0.85rem;">Includes Projection, Sound telemetry, and Research Verification status from <code>chennai_cinema_sources.md</code>.</p>
             </div>
 
             <table class="data-table">
                 <thead>
                     <tr>
                         <th>Screen ID</th>
-                        <th>Theater Name</th>
-                        <th>Screen #</th>
-                        <th>Screen Type</th>
-                        <th>Total Capacity</th>
-                        <th>Configured Seats</th>
+                        <th>Theater Destination</th>
+                        <th>Auditorium Name</th>
+                        <th>Format Type</th>
+                        <th>Capacity</th>
+                        <th>Projection</th>
+                        <th>Sound System</th>
+                        <th>Verification Status</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     ${screens.map(screen => {
                         const theater = theaters.find(t => t.Theater_ID === screen.Theater_ID) || {};
-                        const screenSeats = seats.filter(s => s.Screen_ID === screen.Screen_ID);
+                        const isVerified = screen.Verification_Status === 'Verified';
 
                         return `
                             <tr>
                                 <td><strong style="color: var(--accent-cyan);">${screen.Screen_ID}</strong></td>
                                 <td style="color: var(--text-pure);">${theater.Theater_Name || screen.Theater_ID}</td>
-                                <td>Screen ${screen.Screen_Number}</td>
+                                <td style="font-weight: 700; color: var(--text-pure);">${screen.Screen_Name || `Screen ${screen.Screen_Number}`}</td>
                                 <td><span class="card-format-tag">${screen.Screen_Type}</span></td>
-                                <td style="font-weight: 700; color: var(--text-pure);">${screen.Capacity} Seats</td>
-                                <td style="color: var(--accent-gold); font-weight: 600;">${screenSeats.length} Seats Generated</td>
+                                <td style="font-weight: 700; color: var(--accent-gold);">${screen.Capacity} Seats</td>
+                                <td style="font-size: 0.8rem;">${screen.Projection_Tech}</td>
+                                <td style="font-size: 0.8rem;">${screen.Audio_Tech}</td>
                                 <td>
-                                    <button class="btn-secondary" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;" onclick="window.MTRSAdmin.editScreenCapacity('${screen.Screen_ID}')">
-                                        Update Capacity
+                                    <span style="font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; font-weight: 700; background: ${isVerified ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 184, 0, 0.15)'}; color: ${isVerified ? 'var(--accent-emerald)' : 'var(--accent-gold)'};">
+                                        ${screen.Verification_Status}
+                                    </span>
+                                </td>
+                                <td>
+                                    <button class="btn-secondary" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;" onclick="window.MTRSAdmin.editScreenDetails('${screen.Screen_ID}')">
+                                        Edit Tech/Cap
                                     </button>
                                 </td>
                             </tr>
@@ -280,11 +293,11 @@ class MTRSAdminPanel {
         `;
     }
 
-    editScreenCapacity(screenId) {
+    editScreenDetails(screenId) {
         const screen = this.engine.getTable('SCREEN').find(s => s.Screen_ID === screenId);
         if (!screen) return;
 
-        const newCap = prompt(`Update Capacity for Screen ${screenId} (Currently ${screen.Capacity}):`, screen.Capacity);
+        const newCap = prompt(`Update Capacity for ${screen.Screen_Name || screenId} (Currently ${screen.Capacity}):`, screen.Capacity);
         if (newCap !== null) {
             const parsed = parseInt(newCap, 10);
             if (isNaN(parsed) || parsed <= 0) {
@@ -293,7 +306,7 @@ class MTRSAdminPanel {
             }
             screen.Capacity = parsed;
             this.engine.save();
-            window.App.showToast(`Capacity for Screen ${screenId} updated to ${parsed}.`, "success");
+            window.App.showToast(`Capacity for ${screenId} updated to ${parsed}.`, "success");
             this.renderScreensTable();
             this.refreshDashboard();
         }
@@ -323,7 +336,7 @@ class MTRSAdminPanel {
                         <th>Show ID</th>
                         <th>Movie Title</th>
                         <th>Theater</th>
-                        <th>Screen</th>
+                        <th>Auditorium</th>
                         <th>Format</th>
                         <th>Booked / Cap</th>
                         <th>Occupancy</th>
@@ -336,7 +349,7 @@ class MTRSAdminPanel {
                             <td><strong style="color: var(--accent-cyan);">${r.Show_ID}</strong></td>
                             <td style="color: var(--text-pure); font-weight: 600;">${r.Movie_Name}</td>
                             <td>${r.Theater_Name}</td>
-                            <td>Screen ${r.Screen_Number}</td>
+                            <td><strong style="color: var(--text-pure);">${r.Screen_Name}</strong> (${r.Screen_Type})</td>
                             <td><span class="card-format-tag">${r.Format}</span></td>
                             <td>${r.Seats_Booked} / ${r.Total_Capacity}</td>
                             <td style="color: ${parseFloat(r.Occupancy_Rate) > 0 ? 'var(--accent-emerald)' : 'var(--text-muted)'}; font-weight: 700;">
@@ -364,7 +377,7 @@ class MTRSAdminPanel {
         container.innerHTML = `
             <div style="margin-bottom: 1.5rem;">
                 <h4 style="color: var(--text-pure); font-size: 1.2rem;">Relational Database Schema Inspector (9 BCNF Tables)</h4>
-                <p style="color: var(--text-muted); font-size: 0.88rem;">Inspect live rows, foreign key mappings, and table states.</p>
+                <p style="color: var(--text-muted); font-size: 0.88rem;">Inspect live rows, foreign key mappings, and table states for the Chennai dataset.</p>
             </div>
 
             <div style="display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.75rem; margin-bottom: 1.5rem;">

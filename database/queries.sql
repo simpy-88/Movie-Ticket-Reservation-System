@@ -2,6 +2,7 @@
 -- DATABASE MANAGEMENT SYSTEMS PROJECT: MOVIE TICKET RESERVATION SYSTEM (MTRS)
 -- File: database/queries.sql
 -- Description: 18 Comprehensive Academic SQL Queries (DA2 Report)
+-- Calibrated for Chennai Cinema Destinations & 49 Multi-Auditorium Multiplexes.
 -- Covers: Basic SELECT, Multi-table JOINs, GROUP BY/HAVING, Subqueries,
 --         Correlated Subqueries, Relational Division, NOT IN, and NOT EXISTS.
 -- ============================================================================
@@ -27,16 +28,18 @@ ORDER BY Rating DESC;
 
 -- ----------------------------------------------------------------------------
 -- QUERY 2: Multi-Table Inner Join (THEATER + SCREEN + SHOWS + MOVIE)
--- Objective: List all scheduled shows at 'PVR Cinemas - Forum Mall' with 
---            movie name, screen type, timing, and ticket price.
+-- Objective: List all scheduled shows at 'PVR Palazzo' in Chennai with 
+--            auditorium name, projection, sound, timing, and ticket price.
 -- Concepts: Multiple INNER JOINs with foreign key relationships.
 -- ----------------------------------------------------------------------------
 SELECT 
     t.Theater_Name,
     s.Screen_Number,
+    s.Screen_Name,
     s.Screen_Type,
+    s.Projection_Tech,
+    s.Audio_Tech,
     m.Movie_Name,
-    m.Language,
     sh.Show_Date,
     sh.Show_Time,
     sh.Format,
@@ -45,7 +48,7 @@ FROM SHOWS sh
 INNER JOIN SCREEN s ON sh.Screen_ID = s.Screen_ID
 INNER JOIN THEATER t ON s.Theater_ID = t.Theater_ID
 INNER JOIN MOVIE m ON sh.Movie_ID = m.Movie_ID
-WHERE t.Theater_Name LIKE '%PVR Cinemas%'
+WHERE t.Theater_Name LIKE '%PVR Palazzo%'
 ORDER BY sh.Show_Date, sh.Show_Time;
 
 -- ----------------------------------------------------------------------------
@@ -68,7 +71,7 @@ ORDER BY Total_Revenue DESC;
 
 -- ----------------------------------------------------------------------------
 -- QUERY 4: Nested Subquery with Scalar Aggregate
--- Objective: Find all theaters whose average show ticket price is greater 
+-- Objective: Find all Chennai theaters whose average show ticket price is greater 
 --            than the overall average show ticket price across all theaters.
 -- Concepts: Subquery with AVG(), GROUP BY, HAVING clause.
 -- ----------------------------------------------------------------------------
@@ -107,7 +110,7 @@ ORDER BY Booking_Count DESC, Total_Spent DESC;
 
 -- ----------------------------------------------------------------------------
 -- QUERY 6: Complex 5-Table Join
--- Objective: Retrieve all seats booked for Show 'SH01' with seat numbers, 
+-- Objective: Retrieve all seats booked for Show 'SH01' (Palazzo IMAX) with seat numbers, 
 --            categories, booking timestamp, and customer details.
 -- Concepts: JOIN across BOOKING, BOOKED_SEAT, SEAT, CUSTOMER, SHOWS.
 -- ----------------------------------------------------------------------------
@@ -182,6 +185,7 @@ SELECT
     sh.Show_ID,
     m.Movie_Name,
     t.Theater_Name,
+    s.Screen_Name,
     sh.Show_Date,
     sh.Show_Time,
     sh.Format,
@@ -202,6 +206,7 @@ SELECT
     sh.Show_ID,
     m.Movie_Name,
     t.Theater_Name,
+    s.Screen_Name,
     sh.Format,
     COUNT(bs.Seat_ID) AS Total_Seats_Sold,
     SUM(p.Amount) AS Total_Revenue
@@ -212,7 +217,7 @@ INNER JOIN THEATER t ON s.Theater_ID = t.Theater_ID
 INNER JOIN BOOKING b ON sh.Show_ID = b.Show_ID
 INNER JOIN BOOKED_SEAT bs ON b.Booking_ID = bs.Booking_ID
 INNER JOIN PAYMENT p ON b.Booking_ID = p.Booking_ID
-GROUP BY sh.Show_ID, m.Movie_Name, t.Theater_Name, sh.Format
+GROUP BY sh.Show_ID, m.Movie_Name, t.Theater_Name, s.Screen_Name, sh.Format
 ORDER BY Total_Revenue DESC
 LIMIT 3;
 
@@ -224,7 +229,7 @@ LIMIT 3;
 SELECT 
     sh.Show_ID,
     m.Movie_Name,
-    s.Screen_Number,
+    s.Screen_Name,
     s.Capacity AS Total_Capacity,
     COUNT(bs.Seat_ID) AS Seats_Booked,
     ROUND((COUNT(bs.Seat_ID) * 100.0 / s.Capacity), 2) AS Occupancy_Percentage
@@ -233,14 +238,14 @@ INNER JOIN MOVIE m ON sh.Movie_ID = m.Movie_ID
 INNER JOIN SCREEN s ON sh.Screen_ID = s.Screen_ID
 LEFT JOIN BOOKING b ON sh.Show_ID = b.Show_ID
 LEFT JOIN BOOKED_SEAT bs ON b.Booking_ID = bs.Booking_ID
-GROUP BY sh.Show_ID, m.Movie_Name, s.Screen_Number, s.Capacity
+GROUP BY sh.Show_ID, m.Movie_Name, s.Screen_Name, s.Capacity
 ORDER BY Occupancy_Percentage DESC;
 
 -- ----------------------------------------------------------------------------
 -- QUERY 12: Relational Intersection Simulation
 -- Objective: Find customers who booked tickets for both 'Superman: Legacy' 
 --            AND 'Heat'.
--- Concepts: Intersection using IN or INTERSECT syntax.
+-- Concepts: Intersection using compound IN subqueries.
 -- ----------------------------------------------------------------------------
 SELECT c.Customer_ID, c.Customer_Name, c.Email
 FROM CUSTOMER c
@@ -260,8 +265,8 @@ AND c.Customer_ID IN (
 );
 
 -- ----------------------------------------------------------------------------
--- QUERY 13: Summary by Theater & Genre Diversity
--- Objective: Count total active shows and distinct movie genres per theater.
+-- QUERY 13: Summary by Chennai Theater & Genre Diversity
+-- Objective: Count total active shows and distinct movie genres per theater in Chennai.
 -- Concepts: COUNT(DISTINCT), GROUP BY with multiple dimensions.
 -- ----------------------------------------------------------------------------
 SELECT 
@@ -274,17 +279,19 @@ FROM THEATER t
 INNER JOIN SCREEN s ON t.Theater_ID = s.Theater_ID
 INNER JOIN SHOWS sh ON s.Screen_ID = sh.Screen_ID
 INNER JOIN MOVIE m ON sh.Movie_ID = m.Movie_ID
+WHERE t.City = 'Chennai'
 GROUP BY t.Theater_Name, t.City;
 
 -- ----------------------------------------------------------------------------
--- QUERY 14: Filtering with Format Constraints and String Matching
--- Objective: Retrieve all IMAX screenings (IMAX 2D or IMAX 3D) priced >= 400.
--- Concepts: IN operator, numeric comparison, sorting.
+-- QUERY 14: Premium Large Format (PLF) Filter (IMAX, P[XL], BIGPIX)
+-- Objective: Retrieve all Premium Large Format screenings priced >= 380.
+-- Concepts: IN operator with extended PLF formats, numeric comparison, sorting.
 -- ----------------------------------------------------------------------------
 SELECT 
     sh.Show_ID,
     m.Movie_Name,
     t.Theater_Name,
+    s.Screen_Name,
     sh.Format,
     sh.Show_Date,
     sh.Show_Time,
@@ -293,8 +300,8 @@ FROM SHOWS sh
 INNER JOIN MOVIE m ON sh.Movie_ID = m.Movie_ID
 INNER JOIN SCREEN s ON sh.Screen_ID = s.Screen_ID
 INNER JOIN THEATER t ON s.Theater_ID = t.Theater_ID
-WHERE sh.Format IN ('IMAX 2D', 'IMAX 3D')
-  AND sh.Ticket_Price >= 400.00
+WHERE sh.Format IN ('IMAX 2D', 'IMAX 3D', 'P[XL] 2D', 'P[XL] 3D', 'BIGPIX 2D', 'BIGPIX 3D')
+  AND sh.Ticket_Price >= 380.00
 ORDER BY sh.Ticket_Price DESC;
 
 -- ----------------------------------------------------------------------------
@@ -321,14 +328,15 @@ HAVING COUNT(bs.Seat_ID) > 1
 ORDER BY Seats_Count DESC, Total_Paid DESC;
 
 -- ----------------------------------------------------------------------------
--- QUERY 16: Correlated Subquery (Max Capacity per Theater)
--- Objective: For each theater, find the screen with the highest seating capacity.
+-- QUERY 16: Correlated Subquery (Screen with Largest Seating Capacity per Theater)
+-- Objective: For each of the 6 Chennai theaters, find its largest auditorium.
 -- Concepts: Correlated subquery in WHERE clause.
 -- ----------------------------------------------------------------------------
 SELECT 
     t.Theater_Name,
     s1.Screen_ID,
     s1.Screen_Number,
+    s1.Screen_Name,
     s1.Screen_Type,
     s1.Capacity
 FROM SCREEN s1
@@ -358,16 +366,16 @@ ORDER BY Total_Revenue DESC;
 -- ----------------------------------------------------------------------------
 -- QUERY 18: Relational Division Simulation (Universal Quantification)
 -- Objective: Find all customers who have booked at least one show in EVERY 
---            theater located in 'Bangalore'.
+--            theater located in 'Chennai'.
 -- Concepts: Double NOT EXISTS (Relational Division in SQL).
 -- ----------------------------------------------------------------------------
 SELECT c.Customer_ID, c.Customer_Name, c.Email
 FROM CUSTOMER c
 WHERE NOT EXISTS (
-    -- All Bangalore theaters
+    -- All Chennai theaters
     SELECT t.Theater_ID 
     FROM THEATER t
-    WHERE t.City = 'Bangalore'
+    WHERE t.City = 'Chennai'
     AND NOT EXISTS (
         -- Shows booked by this customer in this theater
         SELECT 1

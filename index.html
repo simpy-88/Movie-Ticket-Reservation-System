@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MTRS — Movie Ticket Reservation System | DBMS Project</title>
-    <meta name="description" content="A comprehensive, normalized BCNF Movie Ticket Reservation System built for Database Management Systems, featuring live seat booking, transaction rollback, and 18 academic SQL queries.">
+    <title>MTRS Chennai — Movie Ticket Reservation System | DBMS Project</title>
+    <meta name="description" content="A comprehensive, normalized BCNF Movie Ticket Reservation System built for Database Management Systems, featuring 6 Chennai cinema destinations, 49 auditoriums, live seat booking, transaction rollback, and 18 academic SQL queries.">
     
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -24,14 +24,14 @@
         <div class="nav-brand" onclick="window.App.switchView('home')">
             <div class="brand-icon">🎬</div>
             <div>
-                <div class="brand-title">MTRS<span>•</span>CINEMAS</div>
+                <div class="brand-title">MTRS<span>•</span>CHENNAI</div>
             </div>
-            <span class="brand-tag">BCNF 9-RELATIONS</span>
+            <span class="brand-tag">6 DESTINATIONS • 49 AUDIS</span>
         </div>
 
         <div class="nav-search">
             <span class="search-icon">🔍</span>
-            <input type="text" id="navbar-search" class="search-input" placeholder="Search movies, genres, theaters (e.g. Superman, IMAX, PVR)..." aria-label="Search movies">
+            <input type="text" id="navbar-search" class="search-input" placeholder="Search Chennai theaters, movies, formats (e.g. Palazzo, Luxe, Sathyam, P[XL], IMAX)..." aria-label="Search movies">
         </div>
 
         <ul class="nav-links">
@@ -42,7 +42,7 @@
         </ul>
 
         <div style="display: flex; align-items: center; gap: 0.75rem;">
-            <button id="btn-reset-db" class="btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.78rem;" title="Reset Relational Database to Seed Data">
+            <button id="btn-reset-db" class="btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.78rem;" title="Reset Relational Database to Chennai Seed Data">
                 🔄 Reset DB
             </button>
 
@@ -62,24 +62,25 @@
         <section class="hero-section">
             <div class="hero-card">
                 <div>
-                    <span class="hero-badge">⚡ Now Showing in IMAX Laser & 3D</span>
+                    <span class="hero-badge">⚡ Now Screening Across 6 Chennai Destinations</span>
                     <h1 class="hero-title">SUPERMAN: LEGACY</h1>
                     <div class="hero-meta">
                         <span class="meta-rating">★ 8.6/10</span>
                         <span class="meta-pill">Action / Sci-Fi</span>
                         <span class="meta-pill">English</span>
                         <span class="meta-pill">2h 30m</span>
-                        <span class="meta-pill" style="border-color: var(--accent-cyan); color: var(--accent-cyan);">IMAX 3D</span>
+                        <span class="meta-pill" style="border-color: var(--accent-cyan); color: var(--accent-cyan);">IMAX Laser</span>
+                        <span class="meta-pill" style="border-color: var(--accent-gold); color: var(--accent-gold);">P[XL] / BIGPIX</span>
                     </div>
                     <p class="hero-synopsis">
-                        The iconic hero reconciles his Kryptonian heritage with his human upbringing, standing as the embodiment of truth, justice, and tomorrow in a world that views kindness as old-fashioned.
+                        Experience the epic blockbuster at Chennai's premier destinations: Palazzo IMAX, INOX Luxe Phoenix, VR Chennai P[XL], and Sathyam Main Hall with uncompressed Dolby Atmos and Laser projection.
                     </p>
                     <div class="hero-actions">
                         <button class="btn-primary" id="btn-hero-book">
                             🎟️ Book Tickets Now
                         </button>
                         <button class="btn-secondary" onclick="window.App.switchView('sql-sandbox')">
-                            📊 View SQL Queries
+                            📊 View 18 SQL Queries
                         </button>
                     </div>
                 </div>
@@ -103,13 +104,15 @@
                 <button class="filter-chip" data-filter-type="genre" data-filter-value="Thriller">Thriller</button>
             </div>
 
-            <!-- Format Filters -->
+            <!-- Format Filters (Standard & PLFs) -->
             <div class="filter-group">
                 <span class="filter-label">Format:</span>
-                <button class="filter-chip active" data-filter-type="format" data-filter-value="All">All</button>
+                <button class="filter-chip active" data-filter-type="format" data-filter-value="All">All Formats</button>
                 <button class="filter-chip" data-filter-type="format" data-filter-value="2D">2D</button>
                 <button class="filter-chip" data-filter-type="format" data-filter-value="3D">3D</button>
-                <button class="filter-chip" data-filter-type="format" data-filter-value="IMAX">IMAX 3D</button>
+                <button class="filter-chip" data-filter-type="format" data-filter-value="IMAX">IMAX Laser</button>
+                <button class="filter-chip" data-filter-type="format" data-filter-value="P[XL]">P[XL] Giant</button>
+                <button class="filter-chip" data-filter-type="format" data-filter-value="BIGPIX">BIGPIX</button>
             </div>
 
             <!-- Language Filters -->
@@ -124,8 +127,8 @@
         <!-- Movie Catalog Grid -->
         <section class="main-content">
             <div class="section-header">
-                <h2 class="section-title">Current Theatrical Releases</h2>
-                <span style="font-size: 0.88rem; color: var(--text-muted);">Showing live schedules in Bangalore</span>
+                <h2 class="section-title">Current Theatrical Releases in Chennai</h2>
+                <span style="font-size: 0.88rem; color: var(--text-muted);">Live schedules across 6 verified Chennai destinations</span>
             </div>
             <div class="movie-grid" id="movie-grid-container">
                 <!-- Movie cards populated by js/app.js -->
@@ -134,7 +137,7 @@
     </main>
 
     <!-- ====================================================================
-         VIEW 2: THEATER & SHOW SELECTOR VIEW
+         VIEW 2: THEATER & SHOW SELECTOR VIEW (6 Chennai Destinations)
          ==================================================================== -->
     <main id="view-theaters" class="main-content theater-view">
         <!-- Rendered dynamically by window.App.renderTheaterView() -->
@@ -164,7 +167,7 @@
             <div>
                 <h2 class="section-title">Cinema Operations &amp; DBMS Administration</h2>
                 <p style="color: var(--text-muted); font-size: 0.88rem; margin-top: 0.25rem;">
-                    Manage show schedules, screen capacities, audit 9 BCNF relations, and inspect financial metrics.
+                    Manage show schedules, 49 auditorium capacities and telemetry, audit 9 BCNF relations, and inspect financial metrics.
                 </p>
             </div>
         </div>
@@ -192,7 +195,7 @@
         <!-- Admin Tab Navigation -->
         <div class="admin-tabs">
             <button class="admin-tab-btn active" data-tab="shows">📅 Show Schedule Manager</button>
-            <button class="admin-tab-btn" data-tab="screens">🖥️ Screen Capacities</button>
+            <button class="admin-tab-btn" data-tab="screens">🖥️ 49 Auditoriums &amp; Telemetry</button>
             <button class="admin-tab-btn" data-tab="revenue">📈 Revenue &amp; Occupancy (sp_GetShowRevenueReport)</button>
             <button class="admin-tab-btn" data-tab="relations">🗄️ Relational Schema Browser (9 Tables)</button>
         </div>
@@ -202,7 +205,7 @@
             <div class="data-table-container" id="admin-shows-table-container"></div>
         </div>
 
-        <!-- Admin Tab 2: Screen Capacities -->
+        <!-- Admin Tab 2: Screen Capacities & Telemetry -->
         <div id="admin-tab-screens" class="admin-tab-content">
             <div class="data-table-container" id="admin-screens-table-container"></div>
         </div>
@@ -226,7 +229,7 @@
             <div>
                 <h2 class="section-title">Academic SQL Query Sandbox (DA2 Report)</h2>
                 <p style="color: var(--text-muted); font-size: 0.88rem; margin-top: 0.25rem;">
-                    Execute all 18 academic SQL queries against the live BCNF database state with execution profiling.
+                    Execute all 18 academic SQL queries against the live Chennai BCNF database state with execution profiling.
                 </p>
             </div>
         </div>
@@ -385,7 +388,7 @@
          ADD NEW SHOW MODAL (Admin Schedule Manager)
          ==================================================================== -->
     <div id="add-show-modal" class="modal-backdrop">
-        <div class="modal-box" style="max-width: 520px;">
+        <div class="modal-box" style="max-width: 540px;">
             <button class="modal-close-btn" onclick="document.getElementById('add-show-modal').classList.remove('active')">✕</button>
             <h3 style="font-family: var(--font-heading); font-size: 1.3rem; color: var(--text-pure); margin-bottom: 0.5rem;">
                 Schedule New Movie Show
@@ -400,7 +403,7 @@
                     <select id="modal-new-show-movie" class="query-selector-select" style="margin-bottom: 0;"></select>
                 </div>
                 <div>
-                    <label for="modal-new-show-screen" style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Theater Screen:</label>
+                    <label for="modal-new-show-screen" style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Chennai Destination &amp; Auditorium:</label>
                     <select id="modal-new-show-screen" class="query-selector-select" style="margin-bottom: 0;"></select>
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
@@ -417,15 +420,19 @@
                     <div>
                         <label for="modal-new-show-format" style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Format:</label>
                         <select id="modal-new-show-format" class="query-selector-select" style="margin-bottom: 0;">
-                            <option value="2D">2D</option>
-                            <option value="3D">3D</option>
-                            <option value="IMAX 2D">IMAX 2D</option>
-                            <option value="IMAX 3D">IMAX 3D</option>
+                            <option value="2D">2D Standard</option>
+                            <option value="3D">3D Standard</option>
+                            <option value="IMAX 2D">IMAX 2D Laser</option>
+                            <option value="IMAX 3D">IMAX 3D Laser</option>
+                            <option value="P[XL] 2D">P[XL] 2D Giant</option>
+                            <option value="P[XL] 3D">P[XL] 3D Giant</option>
+                            <option value="BIGPIX 2D">BIGPIX 2D</option>
+                            <option value="BIGPIX 3D">BIGPIX 3D</option>
                         </select>
                     </div>
                     <div>
                         <label for="modal-new-show-price" style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Base Price (₹):</label>
-                        <input type="number" id="modal-new-show-price" class="search-input" value="350" min="50" style="padding-left: 1rem;">
+                        <input type="number" id="modal-new-show-price" class="search-input" value="380" min="50" style="padding-left: 1rem;">
                     </div>
                 </div>
             </div>

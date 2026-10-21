@@ -3,6 +3,7 @@
 // File: js/app.js
 // Description: Core application logic, routing, movie browser, showtime picker,
 //              interactive seat selection, and atomic checkout transaction flow.
+// Updated for 6 Chennai Cinema Destinations & 49 Multi-Auditorium Screens.
 // ============================================================================
 
 class MTRSApp {
@@ -78,9 +79,9 @@ class MTRSApp {
         const resetBtn = document.getElementById('btn-reset-db');
         if (resetBtn) {
             resetBtn.addEventListener('click', () => {
-                if (confirm("Reset MTRS database to default academic seed state? All bookings and changes will revert to original seed data.")) {
+                if (confirm("Reset MTRS database to default Chennai cinema seed state? All 6 Chennai destinations and 49 screens will be re-initialized.")) {
                     this.engine.resetToSeed();
-                    this.showToast("Database restored to original seed state.", "success");
+                    this.showToast("Database restored to Chennai cinema seed dataset.", "success");
                     this.renderMovieGrid();
                     if (window.MTRSAdmin) window.MTRSAdmin.refreshDashboard();
                 }
@@ -239,7 +240,7 @@ class MTRSApp {
     }
 
     // ------------------------------------------------------------------------
-    // THEATER & SHOW SELECTOR VIEW
+    // THEATER & SHOW SELECTOR VIEW (6 Chennai Cinema Destinations)
     // ------------------------------------------------------------------------
     selectMovieForBooking(movieId) {
         const movie = this.engine.getTable('MOVIE').find(m => m.Movie_ID === movieId);
@@ -271,10 +272,10 @@ class MTRSApp {
         const screens = this.engine.getTable('SCREEN');
         const shows = this.engine.getTable('SHOWS');
 
-        // Filter shows for this movie and date
-        const movieShows = shows.filter(s => s.Movie_ID === movie.Movie_ID);
+        // Filter shows for this movie and selected date
+        const movieShows = shows.filter(s => s.Movie_ID === movie.Movie_ID && s.Show_Date === this.selectedDate);
 
-        // Group shows by Theater
+        // Group shows by Theater across all 6 Chennai destinations
         const theaterGroups = theaters.map(th => {
             const thScreens = screens.filter(sc => sc.Theater_ID === th.Theater_ID);
             const thScreenIds = new Set(thScreens.map(sc => sc.Screen_ID));
@@ -285,7 +286,9 @@ class MTRSApp {
                 screens: thScreens,
                 shows: thShows
             };
-        }).filter(g => g.shows.length > 0);
+        });
+
+        const activeGroupsWithShows = theaterGroups.filter(g => g.shows.length > 0);
 
         container.innerHTML = `
             <div class="breadcrumbs">
@@ -293,13 +296,13 @@ class MTRSApp {
                 <span>/</span>
                 <span>${movie.Movie_Name}</span>
                 <span>/</span>
-                <span style="color: var(--primary);">Select Showtimes</span>
+                <span style="color: var(--primary);">Chennai Cinema Theaters & Showtimes</span>
             </div>
 
             <div class="show-movie-banner">
                 <div class="show-movie-info">
                     <h2>${movie.Movie_Name}</h2>
-                    <div style="display: flex; gap: 1rem; align-items: center; color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.4rem;">
+                    <div style="display: flex; gap: 1rem; align-items: center; color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.4rem; flex-wrap: wrap;">
                         <span style="color: var(--accent-gold); font-weight: 700;">★ ${movie.Rating}/10</span>
                         <span>•</span>
                         <span>${movie.Genre}</span>
@@ -307,21 +310,23 @@ class MTRSApp {
                         <span>${movie.Language}</span>
                         <span>•</span>
                         <span>${movie.Duration} Mins</span>
+                        <span>•</span>
+                        <span style="color: var(--accent-cyan); font-weight: 600;">📍 Chennai Multiplexes</span>
                     </div>
                 </div>
             </div>
 
             <!-- Date Selector Row -->
             <div class="date-selector-row">
-                <div class="date-pill active" onclick="window.App.setDateFilter('2026-10-21', this)">
+                <div class="date-pill ${this.selectedDate === '2026-10-21' ? 'active' : ''}" onclick="window.App.setDateFilter('2026-10-21', this)">
                     <div class="date-day">WED</div>
                     <div class="date-number">21</div>
                 </div>
-                <div class="date-pill" onclick="window.App.setDateFilter('2026-10-22', this)">
+                <div class="date-pill ${this.selectedDate === '2026-10-22' ? 'active' : ''}" onclick="window.App.setDateFilter('2026-10-22', this)">
                     <div class="date-day">THU</div>
                     <div class="date-number">22</div>
                 </div>
-                <div class="date-pill" onclick="window.App.setDateFilter('2026-10-23', this)">
+                <div class="date-pill ${this.selectedDate === '2026-10-23' ? 'active' : ''}" onclick="window.App.setDateFilter('2026-10-23', this)">
                     <div class="date-day">FRI</div>
                     <div class="date-number">23</div>
                 </div>
@@ -329,28 +334,33 @@ class MTRSApp {
 
             <!-- Theaters & Showtimes Listing -->
             <div class="theaters-list">
-                ${theaterGroups.length > 0 ? theaterGroups.map(group => `
+                ${activeGroupsWithShows.length > 0 ? activeGroupsWithShows.map(group => `
                     <div class="theater-card">
                         <div class="theater-header">
                             <div>
                                 <h3 class="theater-name">${group.theater.Theater_Name}</h3>
-                                <div class="theater-address">📍 ${group.theater.City}, ${group.theater.State}</div>
+                                <div class="theater-address">📍 ${group.theater.City}, ${group.theater.State} • Total Screens: ${group.screens.length} Auditoriums</div>
                             </div>
-                            <div style="font-size: 0.8rem; color: var(--accent-cyan); font-weight: 700;">
-                                MTRS Verified Partner
+                            <div style="font-size: 0.8rem; color: var(--accent-cyan); font-weight: 700; text-align: right;">
+                                <span>Verified Partner</span>
                             </div>
                         </div>
 
                         <div class="showtimes-grid">
                             ${group.shows.map(show => {
                                 const screen = group.screens.find(s => s.Screen_ID === show.Screen_ID);
+                                const isPLF = ['IMAX 3D', 'IMAX 2D', 'P[XL] 2D', 'P[XL] 3D', 'BIGPIX 2D', 'BIGPIX 3D'].includes(show.Format);
+                                
                                 return `
-                                    <button class="showtime-btn" onclick="window.App.selectShowForSeats('${show.Show_ID}')">
+                                    <button class="showtime-btn ${isPLF ? 'plf-highlight' : ''}" onclick="window.App.selectShowForSeats('${show.Show_ID}')">
                                         <div class="showtime-time">${show.Show_Time.substring(0, 5)}</div>
-                                        <div class="showtime-format">${show.Format}</div>
+                                        <div class="showtime-format" style="color: ${isPLF ? 'var(--accent-gold)' : 'var(--accent-cyan)'};">${show.Format}</div>
                                         <div class="showtime-price">₹${show.Ticket_Price}</div>
-                                        <div style="font-size: 0.65rem; color: var(--text-muted); margin-top: 2px;">
-                                            ${screen ? screen.Screen_Type : 'Standard'}
+                                        <div style="font-size: 0.68rem; color: var(--text-pure); font-weight: 600; margin-top: 3px; max-width: 130px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                            ${screen ? screen.Screen_Name : 'Audi 1'}
+                                        </div>
+                                        <div style="font-size: 0.62rem; color: var(--text-muted);">
+                                            ${screen ? screen.Audio_Tech : 'Dolby 7.1'}
                                         </div>
                                     </button>
                                 `;
@@ -360,9 +370,25 @@ class MTRSApp {
                 `).join('') : `
                     <div class="theater-card" style="text-align: center; padding: 3rem 1rem;">
                         <h4 style="color: var(--text-pure); margin-bottom: 0.5rem;">No Shows Available For This Date</h4>
-                        <p style="color: var(--text-secondary); font-size: 0.9rem;">Please choose another date or explore other movies.</p>
+                        <p style="color: var(--text-secondary); font-size: 0.9rem;">Please choose another date (e.g. Wed 21) or explore other movies.</p>
                     </div>
                 `}
+
+                <!-- Collapsible list of all 6 Chennai destinations -->
+                <div style="background: var(--bg-surface); border: var(--glass-border); border-radius: var(--radius-lg); padding: 1.5rem; margin-top: 2rem;">
+                    <h4 style="font-size: 1.1rem; color: var(--text-pure); margin-bottom: 0.5rem;">All 6 Verified Chennai Destinations in MTRS:</h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; font-size: 0.85rem; color: var(--text-secondary);">
+                        ${theaters.map(t => {
+                            const scCount = screens.filter(s => s.Theater_ID === t.Theater_ID).length;
+                            return `
+                                <div style="background: var(--bg-surface-elevated); padding: 0.75rem 1rem; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+                                    <strong style="color: var(--text-pure);">${t.Theater_Name}</strong>
+                                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">${scCount} Separate Auditoriums • ${t.City}</div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
             </div>
         `;
     }
@@ -375,7 +401,7 @@ class MTRSApp {
     }
 
     // ------------------------------------------------------------------------
-    // SEAT SELECTION VIEW
+    // SEAT SELECTION VIEW (Dynamic & Clamped to Capacity)
     // ------------------------------------------------------------------------
     selectShowForSeats(showId) {
         const show = this.engine.getTable('SHOWS').find(s => s.Show_ID === showId);
@@ -416,9 +442,9 @@ class MTRSApp {
         // Determine price multiplier by tier
         const getTierPrice = (type) => {
             if (type === 'VIP') return show.Ticket_Price;
-            if (type === 'Balcony') return Math.max(show.Ticket_Price - 60, 200);
-            if (type === 'Premium') return Math.max(show.Ticket_Price - 100, 180);
-            return Math.max(show.Ticket_Price - 150, 150);
+            if (type === 'Balcony') return Math.max(show.Ticket_Price - 50, 180);
+            if (type === 'Premium') return Math.max(show.Ticket_Price - 90, 160);
+            return Math.max(show.Ticket_Price - 130, 140);
         };
 
         container.innerHTML = `
@@ -434,7 +460,12 @@ class MTRSApp {
                 <div>
                     <h2 class="seat-movie-title">${movie.Movie_Name} (${show.Format})</h2>
                     <div class="seat-theater-meta">
-                        ${theater ? theater.Theater_Name : ''} | Screen ${screen ? screen.Screen_Number : 1} (${screen ? screen.Screen_Type : 'Standard'})
+                        ${theater ? theater.Theater_Name : ''} | 
+                        <strong>${screen ? screen.Screen_Name : 'Audi'}</strong> • 
+                        ${screen ? screen.Projection_Tech : ''} • ${screen ? screen.Audio_Tech : ''}
+                    </div>
+                    <div style="font-size: 0.75rem; color: var(--accent-emerald); font-weight: 700; margin-top: 4px;">
+                        Auditorium Capacity: ${screen ? screen.Capacity : ''} Seats (${screen ? screen.Verification_Status : ''})
                     </div>
                 </div>
                 <div style="text-align: right;">
@@ -604,7 +635,7 @@ class MTRSApp {
 
         // Render checkout details
         document.getElementById('checkout-movie-title').textContent = this.selectedMovie.Movie_Name;
-        document.getElementById('checkout-theater-info').textContent = `${theater ? theater.Theater_Name : ''} • Screen ${screen ? screen.Screen_Number : 1} (${this.selectedShow.Format})`;
+        document.getElementById('checkout-theater-info').textContent = `${theater ? theater.Theater_Name : ''} • ${screen ? screen.Screen_Name : 'Audi'} (${this.selectedShow.Format})`;
         document.getElementById('checkout-show-time').textContent = `${this.selectedShow.Show_Date} at ${this.selectedShow.Show_Time.substring(0, 5)}`;
         document.getElementById('checkout-seats-list').textContent = this.selectedSeats.map(s => s.Seat_Number).join(', ');
         
@@ -707,7 +738,7 @@ class MTRSApp {
                 <div class="ticket-pass">
                     <div class="ticket-header">
                         <div>
-                            <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.9;">MTRS E-Ticket</div>
+                            <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.9;">MTRS Chennai E-Ticket</div>
                             <div style="font-family: var(--font-heading); font-size: 1.3rem; font-weight: 800;">BOARDING PASS</div>
                         </div>
                         <div class="ticket-badge-confirmed">CONFIRMED</div>
@@ -719,12 +750,12 @@ class MTRSApp {
 
                         <div class="ticket-grid">
                             <div>
-                                <div class="ticket-item-label">Cinema / Theater</div>
+                                <div class="ticket-item-label">Cinema / Destination</div>
                                 <div class="ticket-item-value">${theater ? theater.Theater_Name : ''}</div>
                             </div>
                             <div>
-                                <div class="ticket-item-label">Screen</div>
-                                <div class="ticket-item-value">Screen ${screen ? screen.Screen_Number : 1} (${screen ? screen.Screen_Type : 'Standard'})</div>
+                                <div class="ticket-item-label">Auditorium</div>
+                                <div class="ticket-item-value">${screen ? screen.Screen_Name : 'Audi'} (${screen ? screen.Audio_Tech : ''})</div>
                             </div>
                             <div>
                                 <div class="ticket-item-label">Date & Time</div>
@@ -753,7 +784,7 @@ class MTRSApp {
                                     PAYMENT REF: ${payment.Payment_ID}
                                 </div>
                                 <div style="font-size: 0.75rem; color: var(--accent-emerald); font-weight: 600; margin-top: 6px;">
-                                    ✓ Relational Integrity Verified (BCNF)
+                                    ✓ Relational Integrity Verified (BCNF Schema)
                                 </div>
                             </div>
 
@@ -830,7 +861,7 @@ class MTRSApp {
         container.innerHTML = `
             <div style="margin-bottom: 1.5rem;">
                 <h3 style="font-size: 1.4rem; color: var(--text-pure);">Tickets Booked by ${customer.Customer_Name}</h3>
-                <p style="color: var(--text-muted); font-size: 0.88rem;">Manage your active reservations, view boarding passes, or process cancellations.</p>
+                <p style="color: var(--text-muted); font-size: 0.88rem;">Manage your active reservations in Chennai multiplexes or process instant cancellations.</p>
             </div>
 
             <div style="display: grid; gap: 1.5rem;">
@@ -860,7 +891,7 @@ class MTRSApp {
                                         ${movie.Movie_Name || 'Movie'}
                                     </h4>
                                     <div style="color: var(--text-secondary); font-size: 0.85rem;">
-                                        ${theater.Theater_Name || ''} • Screen ${screen.Screen_Number || 1}
+                                        ${theater.Theater_Name || ''} • ${screen.Screen_Name || 'Audi'}
                                     </div>
                                 </div>
 

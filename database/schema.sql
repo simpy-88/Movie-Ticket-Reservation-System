@@ -3,6 +3,8 @@
 -- File: database/schema.sql
 -- Description: DDL script creating all 9 normalized relational tables (up to BCNF).
 -- Engine: MySQL 8.0+ compatible (InnoDB with strict referential integrity)
+-- Enhanced for Chennai Cinema Destinations: Supports Screen Names, Tech telemetry,
+-- and Premium Large Formats ('IMAX', 'P[XL]', 'BIGPIX', '2D', '3D').
 -- ============================================================================
 
 DROP DATABASE IF EXISTS mtrs_db;
@@ -26,7 +28,7 @@ SET FOREIGN_KEY_CHECKS = 1;
 
 -- ----------------------------------------------------------------------------
 -- 1. THEATER RELATION
--- Represents physical cinema locations across cities.
+-- Represents physical cinema locations across Chennai.
 -- ----------------------------------------------------------------------------
 CREATE TABLE THEATER (
     Theater_ID VARCHAR(10) NOT NULL,
@@ -40,14 +42,19 @@ CREATE TABLE THEATER (
 -- ----------------------------------------------------------------------------
 -- 2. SCREEN RELATION
 -- Physical auditorium/hall inside a theater.
+-- Includes auditorium name, projection/audio telemetry, and research verification.
 -- CHECK (Capacity > 0)
 -- ----------------------------------------------------------------------------
 CREATE TABLE SCREEN (
     Screen_ID VARCHAR(10) NOT NULL,
     Theater_ID VARCHAR(10) NOT NULL,
     Screen_Number INT NOT NULL,
+    Screen_Name VARCHAR(50) NOT NULL DEFAULT '',
     Screen_Type VARCHAR(30) NOT NULL DEFAULT 'Standard',
     Capacity INT NOT NULL,
+    Projection_Tech VARCHAR(50) NOT NULL DEFAULT '2K Digital',
+    Audio_Tech VARCHAR(50) NOT NULL DEFAULT 'Dolby 7.1',
+    Verification_Status VARCHAR(30) NOT NULL DEFAULT 'Published - Unverified',
     CONSTRAINT pk_screen PRIMARY KEY (Screen_ID),
     CONSTRAINT fk_screen_theater FOREIGN KEY (Theater_ID) 
         REFERENCES THEATER(Theater_ID) 
@@ -76,7 +83,8 @@ CREATE TABLE MOVIE (
 -- ----------------------------------------------------------------------------
 -- 4. SHOW RELATION
 -- Scheduled screening of a movie in a specific screen at a given date/time.
--- CHECK (Format IN ('2D', '3D', 'IMAX 2D', 'IMAX 3D')), CHECK (Ticket_Price > 0)
+-- Supports: '2D', '3D', 'IMAX 2D', 'IMAX 3D', 'P[XL] 2D', 'P[XL] 3D', 'BIGPIX 2D', 'BIGPIX 3D'
+-- CHECK (Ticket_Price > 0)
 -- ----------------------------------------------------------------------------
 CREATE TABLE SHOWS (
     Show_ID VARCHAR(10) NOT NULL,
@@ -93,7 +101,9 @@ CREATE TABLE SHOWS (
     CONSTRAINT fk_show_screen FOREIGN KEY (Screen_ID) 
         REFERENCES SCREEN(Screen_ID) 
         ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT chk_show_format CHECK (Format IN ('2D', '3D', 'IMAX 2D', 'IMAX 3D')),
+    CONSTRAINT chk_show_format CHECK (
+        Format IN ('2D', '3D', 'IMAX 2D', 'IMAX 3D', 'P[XL] 2D', 'P[XL] 3D', 'BIGPIX 2D', 'BIGPIX 3D')
+    ),
     CONSTRAINT chk_show_price CHECK (Ticket_Price > 0.0)
 ) ENGINE=InnoDB;
 
@@ -133,7 +143,7 @@ CREATE TABLE CUSTOMER (
 -- ----------------------------------------------------------------------------
 -- 7. BOOKING RELATION
 -- Header record for a ticket booking transaction.
--- CHECK (Format IN ('2D', '3D', 'IMAX 2D', 'IMAX 3D'))
+-- Supports all verified standard and PLF cinema formats.
 -- ----------------------------------------------------------------------------
 CREATE TABLE BOOKING (
     Booking_ID VARCHAR(10) NOT NULL,
@@ -149,7 +159,9 @@ CREATE TABLE BOOKING (
     CONSTRAINT fk_booking_show FOREIGN KEY (Show_ID) 
         REFERENCES SHOWS(Show_ID) 
         ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT chk_booking_format CHECK (Format IN ('2D', '3D', 'IMAX 2D', 'IMAX 3D')),
+    CONSTRAINT chk_booking_format CHECK (
+        Format IN ('2D', '3D', 'IMAX 2D', 'IMAX 3D', 'P[XL] 2D', 'P[XL] 3D', 'BIGPIX 2D', 'BIGPIX 3D')
+    ),
     CONSTRAINT chk_booking_price CHECK (Ticket_Price >= 0.0)
 ) ENGINE=InnoDB;
 

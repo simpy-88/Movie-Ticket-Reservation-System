@@ -539,7 +539,8 @@ body {
     background: var(--bg-surface-elevated);
 }
 
-.movie-svg-poster {
+.movie-svg-poster,
+.movie-poster-img {
     width: 100%;
     height: 100%;
     display: block;
@@ -547,8 +548,22 @@ body {
     transition: var(--transition);
 }
 
-.movie-card:hover .movie-svg-poster {
+.movie-card:hover .movie-svg-poster,
+.movie-card:hover .movie-poster-img {
     transform: scale(1.05);
+}
+
+.admin-upload-grid {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr;
+    gap: 2rem;
+    align-items: start;
+}
+
+@media (max-width: 900px) {
+    .admin-upload-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 .card-overlay-badge {
@@ -795,6 +810,16 @@ body {
     border-color: var(--accent-cyan);
     transform: translateY(-2px);
     box-shadow: 0 4px 15px rgba(0, 229, 255, 0.2);
+}
+
+.showtime-btn.plf-highlight {
+    border-color: rgba(255, 184, 0, 0.35);
+    background: linear-gradient(135deg, rgba(22, 32, 59, 0.95), rgba(35, 25, 10, 0.8));
+}
+
+.showtime-btn.plf-highlight:hover {
+    border-color: var(--accent-gold);
+    box-shadow: 0 4px 18px rgba(255, 184, 0, 0.3);
 }
 
 .showtime-time {
