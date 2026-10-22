@@ -2,9 +2,9 @@
 -- MOVIE TICKET RESERVATION SYSTEM (MTRS)
 -- File: supabase/seed.sql
 -- Description: Chennai Cinema Seed Dataset for Supabase PostgreSQL
---              6 multiplex destinations, 49 auditoriums, 6 movies, 18 showtimes,
---              representative seat maps, 5 customer profiles, and existing
---              bookings (BK01 - BK08) with matching payments (PAY01 - PAY08).
+--              6 multiplex destinations, 49 auditoriums, 6 movies (matched to js/db-data.js),
+--              18 showtimes, representative seat maps, 5 customer profiles, and
+--              existing bookings (BK01 - BK08) with matching payments (PAY01 - PAY08).
 -- ==============================================================================
 
 -- ------------------------------------------------------------------------------
@@ -94,19 +94,68 @@ ON CONFLICT (screen_id) DO UPDATE SET
     audio_tech = EXCLUDED.audio_tech;
 
 -- ------------------------------------------------------------------------------
--- 3. SEED DATA: MOVIES (M01 to M06)
+-- 3. SEED DATA: MOVIES (M01 to M06 - Sourced from js/db-data.js and assets/posters.js)
 -- ------------------------------------------------------------------------------
-INSERT INTO movies (movie_id, movie_name, genre, rating, duration, language, synopsis, cast_members, poster_url) VALUES
-('M01', 'Superman', 'Action/Sci-Fi', 8.6, 150, 'English', 'Clark Kent reconciles his heritage with his human upbringing.', 'David Corenswet, Rachel Brosnahan, Nicholas Hoult', 'https://image.tmdb.org/t/p/w500/b1x5L8Zqf608gU60m6b7v64lCq8.jpg'),
-('M02', 'Heat', 'Action/Crime', 8.3, 170, 'English', 'A master thief plans one final heist with a relentless LAPD detective on his trail.', 'Al Pacino, Robert De Niro, Val Kilmer', 'https://image.tmdb.org/t/p/w500/rrBuGu0PZ4317TISj5o2kd94BvB.jpg'),
-('M03', 'La La Land', 'Musical/Romance', 8.0, 128, 'English', 'A jazz pianist and an aspiring actress navigate love and ambition in Los Angeles.', 'Ryan Gosling, Emma Stone, John Legend', 'https://image.tmdb.org/t/p/w500/uDO8zWDhfWwoFdKS4fzkVJt0Rf0.jpg'),
-('M04', 'Interstellar', 'Sci-Fi/Adventure', 8.7, 169, 'English', 'A team of explorers travel through a wormhole in space in an attempt to ensure humanity''s survival.', 'Matthew McConaughey, Anne Hathaway, Jessica Chastain', 'https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg'),
-('M05', 'Dune: Part Two', 'Sci-Fi/Action', 8.8, 166, 'English', 'Paul Atreides unites with Chani and the Fremen while seeking revenge against the conspirators.', 'Timothée Chalamet, Zendaya, Rebecca Ferguson', 'https://image.tmdb.org/t/p/w500/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg'),
-('M06', 'Kantara: Chapter 1', 'Action/Thriller', 8.4, 148, 'Kannada', 'A legend born out of sacred folklore and the roots of divine devotion.', 'Rishab Shetty, Rukmini Vasanth, Kishore', 'https://image.tmdb.org/t/p/w500/5g0V458eQy3v7b09xY3f4w6t5c4.jpg')
+INSERT INTO movies (movie_id, movie_name, genre, rating, duration, language, synopsis, cast_members, poster_url, poster_hires_url, backdrop_url, tmdb_id) VALUES
+('M01', 'Superman', 'Action/Sci-Fi', 8.6, 150, 'English', 
+ 'Superman reconciles his Kryptonian heritage with his human upbringing as Clark Kent, standing as the embodiment of truth, justice, and tomorrow.', 
+ 'David Corenswet, Rachel Brosnahan, Nicholas Hoult', 
+ 'https://image.tmdb.org/t/p/w500/ldyfo0BKmz5rWtJJKCvwaNS4cJT.jpg',
+ 'https://image.tmdb.org/t/p/w780/ldyfo0BKmz5rWtJJKCvwaNS4cJT.jpg',
+ 'https://image.tmdb.org/t/p/w1280/eGX66zonvc4bXg3rM08RUxdYSDx.jpg',
+ 1061474),
+
+('M02', 'Heat', 'Action/Crime', 8.3, 170, 'English', 
+ 'A group of high-end professional thieves start to feel the heat from the LAPD when a loose clue is left at their latest heist.', 
+ 'Al Pacino, Robert De Niro, Val Kilmer', 
+ 'https://a.ltrbxd.com/resized/film-poster/5/1/9/9/4/51994-heat-0-2000-0-3000-crop.jpg?v=54dce97dc6',
+ 'https://a.ltrbxd.com/resized/film-poster/5/1/9/9/4/51994-heat-0-2000-0-3000-crop.jpg?v=54dce97dc6',
+ 'https://image.tmdb.org/t/p/w1280/eSVvx8xys2NuFhl8fevXt41wX7v.jpg',
+ 949),
+
+('M03', 'La La Land', 'Musical/Romance', 8.0, 128, 'English', 
+ 'While navigating their careers in Los Angeles, a jazz pianist and an aspiring actress fall in love while attempting to reconcile their artistic dreams.', 
+ 'Ryan Gosling, Emma Stone, John Legend', 
+ 'https://image.tmdb.org/t/p/w500/uDO8zWDhfWwoFdKS4fzkUJt0Rf0.jpg',
+ 'https://image.tmdb.org/t/p/w780/uDO8zWDhfWwoFdKS4fzkUJt0Rf0.jpg',
+ 'https://image.tmdb.org/t/p/w1280/nadTlnTE6DdgmYsN4iWc2a2wiaI.jpg',
+ 313369),
+
+('M04', 'The Odyssey', 'Sci-Fi/Adventure', 8.7, 169, 'English', 
+ 'Christopher Nolan''s sweeping, 70mm large-format epic chronicling humanity''s ancient voyages across uncharted cosmic boundaries and gravitational singularities.', 
+ 'Cillian Murphy, Anne Hathaway, Matt Damon', 
+ 'https://upload.wikimedia.org/wikipedia/en/9/90/The_Odyssey_%282026_film%29_poster.jpg',
+ 'https://image.tmdb.org/t/p/w780/gEU2QniE6E77NI6lCU6MxlWBvIx.jpg',
+ 'https://image.tmdb.org/t/p/w1280/rAiYTfKGqDCRIIqo664sY9XZIvQ.jpg',
+ NULL),
+
+('M05', 'Dune: Part Three', 'Sci-Fi/Action', 8.8, 166, 'English', 
+ 'Paul Atreides consolidates his empire across Arrakis, confronting the perils of prophetic messianism and universal holy war.', 
+ 'Timothée Chalamet, Zendaya, Florence Pugh', 
+ 'https://a.ltrbxd.com/resized/film-poster/1/0/5/7/4/6/1/1057461-dune-part-three-0-2000-0-3000-crop.jpg?v=f577c5b9e7',
+ 'https://a.ltrbxd.com/resized/film-poster/1/0/5/7/4/6/1/1057461-dune-part-three-0-2000-0-3000-crop.jpg?v=f577c5b9e7',
+ 'https://image.tmdb.org/t/p/w1280/xOMo8BRK7PfcJv9JCnx7s520QIq.jpg',
+ 693134),
+
+('M06', 'Avengers: Doomsday', 'Action/Sci-Fi', 8.4, 155, 'English', 
+ 'Earth''s mightiest heroes collide with the sinister intellect of Victor Von Doom in a colossal battle across fractured dimensional timelines.', 
+ 'Robert Downey Jr., Benedict Cumberbatch, Anthony Mackie', 
+ 'https://a.ltrbxd.com/resized/film-poster/9/0/3/8/8/9/903889-avengers-doomsday-0-2000-0-3000-crop.jpg?v=fbbc8d1f4f',
+ 'https://a.ltrbxd.com/resized/film-poster/9/0/3/8/8/9/903889-avengers-doomsday-0-2000-0-3000-crop.jpg?v=fbbc8d1f4f',
+ 'https://image.tmdb.org/t/p/w1280/xOMo8BRK7PfcJv9JCnx7s520QIq.jpg',
+ 1003596)
 ON CONFLICT (movie_id) DO UPDATE SET
     movie_name = EXCLUDED.movie_name,
+    genre = EXCLUDED.genre,
     rating = EXCLUDED.rating,
-    duration = EXCLUDED.duration;
+    duration = EXCLUDED.duration,
+    language = EXCLUDED.language,
+    synopsis = EXCLUDED.synopsis,
+    cast_members = EXCLUDED.cast_members,
+    poster_url = EXCLUDED.poster_url,
+    poster_hires_url = EXCLUDED.poster_hires_url,
+    backdrop_url = EXCLUDED.backdrop_url,
+    tmdb_id = EXCLUDED.tmdb_id;
 
 -- ------------------------------------------------------------------------------
 -- 4. SEED DATA: SHOWS (18 Showtimes across Chennai Multiplexes)
@@ -183,6 +232,7 @@ ON CONFLICT (seat_id) DO NOTHING;
 
 -- ------------------------------------------------------------------------------
 -- 6. SEED DATA: CUSTOMERS (CU01 to CU05)
+-- No plain passwords or demo credentials; ready for Supabase Auth linking.
 -- ------------------------------------------------------------------------------
 INSERT INTO customers (customer_id, customer_name, email, phone) VALUES
 ('CU01', 'Rahul Sharma', 'rahul.s@example.com', '9876543210'),
@@ -211,29 +261,29 @@ INSERT INTO bookings (booking_id, customer_id, show_id, booking_date, ticket_pri
 ON CONFLICT (booking_id) DO NOTHING;
 
 -- ------------------------------------------------------------------------------
--- 8. SEED DATA: BOOKED_SEATS (Reserved seat associations)
+-- 8. SEED DATA: BOOKED_SEATS (Reserved seat associations with show_id & status)
 -- ------------------------------------------------------------------------------
-INSERT INTO booked_seats (booking_id, seat_id) VALUES
+INSERT INTO booked_seats (booking_id, seat_id, show_id, status) VALUES
 -- BK01 (SH01 in SC05 Palazzo IMAX): Seats A1, A2
-('BK01', 'S0501'),
-('BK01', 'S0502'),
+('BK01', 'S0501', 'SH01', 'CONFIRMED'),
+('BK01', 'S0502', 'SH01', 'CONFIRMED'),
 -- BK02 (SH01 in SC05 Palazzo IMAX): Seat B3
-('BK02', 'S0508'),
+('BK02', 'S0508', 'SH01', 'CONFIRMED'),
 -- BK03 (SH03 in SC05 Palazzo IMAX): Seats C1, C2
-('BK03', 'S0511'),
-('BK03', 'S0512'),
+('BK03', 'S0511', 'SH03', 'CONFIRMED'),
+('BK03', 'S0512', 'SH03', 'CONFIRMED'),
 -- BK04 (SH05 in SC20 Luxe IMAX): Seat A1
-('BK04', 'S2001'),
+('BK04', 'S2001', 'SH05', 'CONFIRMED'),
 -- BK05 (SH08 in SC21 VR P[XL]): Seats B1, B2
-('BK05', 'S2105'),
-('BK05', 'S2106'),
+('BK05', 'S2105', 'SH08', 'CONFIRMED'),
+('BK05', 'S2106', 'SH08', 'CONFIRMED'),
 -- BK06 (SH11 in SC31 Sathyam Main): Seat A2
-('BK06', 'S3102'),
+('BK06', 'S3102', 'SH11', 'CONFIRMED'),
 -- BK07 (SH16 in SC42 Marina BIGPIX): Seats C1, C2
-('BK07', 'S4207'),
-('BK07', 'S4208'),
+('BK07', 'S4207', 'SH16', 'CONFIRMED'),
+('BK07', 'S4208', 'SH16', 'CONFIRMED'),
 -- BK08 (SH14 in SC37 Aerohub Audi 1): Seat A1
-('BK08', 'S3701')
+('BK08', 'S3701', 'SH14', 'CONFIRMED')
 ON CONFLICT (booking_id, seat_id) DO NOTHING;
 
 -- ------------------------------------------------------------------------------
@@ -252,8 +302,9 @@ ON CONFLICT (payment_id) DO NOTHING;
 
 -- ------------------------------------------------------------------------------
 -- 10. SYNCHRONIZE SEQUENCE COUNTERS
--- Ensures future bookings, payments, and customers generate non-colliding IDs.
+-- Ensures future bookings, payments, customers, and shows generate non-colliding IDs.
 -- ------------------------------------------------------------------------------
 SELECT setval('booking_id_seq', 9, false);
 SELECT setval('payment_id_seq', 9, false);
 SELECT setval('customer_id_seq', 6, false);
+SELECT setval('show_id_seq', 19, false);
