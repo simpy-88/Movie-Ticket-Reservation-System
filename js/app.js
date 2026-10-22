@@ -434,7 +434,8 @@ class MTRSApp {
         // Group seats by row (A, B, C, D, etc.)
         const rowsMap = {};
         seatInventory.forEach(seat => {
-            const rowLetter = seat.Seat_Number.charAt(0);
+            const match = seat.Seat_Number.match(/^([A-Z]+)/);
+            const rowLetter = match ? match[1] : seat.Seat_Number.charAt(0);
             if (!rowsMap[rowLetter]) rowsMap[rowLetter] = [];
             rowsMap[rowLetter].push(seat);
         });
@@ -447,13 +448,48 @@ class MTRSApp {
             return Math.max(show.Ticket_Price - 130, 140);
         };
 
+        // Sort rows in proper cinema order: single letters (A-Z) then multi-letters (AA-ZZ)
+        const sortedRowKeys = Object.keys(rowsMap).sort((a, b) => {
+            if (a.length !== b.length) return a.length - b.length;
+            return a.localeCompare(b);
+        });
+
+        // Group rows into pricing tiers for clean cinema tier banners
+        const tiers = [];
+        let currentTier = null;
+        sortedRowKeys.forEach(rowKey => {
+            const rowSeats = rowsMap[rowKey].sort((a, b) => {
+                const numA = parseInt(a.Seat_Number.replace(/^[A-Z]+/, ''), 10) || 0;
+                const numB = parseInt(b.Seat_Number.replace(/^[A-Z]+/, ''), 10) || 0;
+                return numA - numB;
+            });
+            const rowType = rowSeats[0].Seat_Type;
+            const tierPrice = getTierPrice(rowType);
+
+            if (!currentTier || currentTier.type !== rowType || currentTier.price !== tierPrice) {
+                currentTier = {
+                    type: rowType,
+                    price: tierPrice,
+                    rows: []
+                };
+                tiers.push(currentTier);
+            }
+            currentTier.rows.push({
+                rowKey,
+                seats: rowSeats
+            });
+        });
+
+        const selectedCount = this.selectedSeats.length;
+        const subtotal = this.selectedSeats.reduce((sum, s) => sum + s.Price, 0);
+
         container.innerHTML = `
             <div class="breadcrumbs">
                 <span class="breadcrumb-link" onclick="window.App.selectMovieForBooking('${movie.Movie_ID}')">← Back to Showtimes</span>
                 <span>/</span>
                 <span>${movie.Movie_Name}</span>
                 <span>/</span>
-                <span style="color: var(--primary);">${theater ? theater.Theater_Name : ''}</span>
+                <span style="color: var(--mtrs-seat-selected, #B49AFF);">${theater ? theater.Theater_Name : ''}</span>
             </div>
 
             <div class="seat-show-header">
@@ -464,71 +500,83 @@ class MTRSApp {
                         <strong>${screen ? screen.Screen_Name : 'Audi'}</strong> • 
                         ${screen ? screen.Projection_Tech : ''} • ${screen ? screen.Audio_Tech : ''}
                     </div>
-                    <div style="font-size: 0.75rem; color: var(--accent-emerald); font-weight: 700; margin-top: 4px;">
+                    <div style="font-size: 0.75rem; color: var(--accent-emerald, #10B981); font-weight: 700; margin-top: 4px;">
                         Auditorium Capacity: ${screen ? screen.Capacity : ''} Seats (${screen ? screen.Verification_Status : ''})
                     </div>
                 </div>
                 <div style="text-align: right;">
-                    <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Showtime</div>
-                    <div style="font-family: var(--font-heading); font-size: 1.25rem; font-weight: 800; color: var(--accent-cyan);">
+                    <div style="font-size: 0.8rem; color: var(--mtrs-text-secondary, #898DA5); font-weight: 700; text-transform: uppercase;">Showtime</div>
+                    <div style="font-family: var(--font-heading); font-size: 1.25rem; font-weight: 800; color: var(--mtrs-seat-selected, #B49AFF);">
                         ${show.Show_Date} • ${show.Show_Time.substring(0, 5)}
                     </div>
                 </div>
             </div>
 
-            <!-- Curved Screen Visual -->
+            <!-- 1. Cinema Screen Visual with subtle curve & purple glow -->
             <div class="cinema-screen-container">
                 <div class="cinema-screen-curve"></div>
-                <div class="screen-text">All Eyes This Way Please (Cinema Screen)</div>
+                <div class="screen-text">SCREEN</div>
             </div>
 
-            <!-- Seat Grid Wrapper -->
+            <!-- 2. Elliptical Seat Map Wrapper -->
             <div class="seat-map-wrapper">
-                ${Object.keys(rowsMap).sort().map(rowKey => {
-                    const rowSeats = rowsMap[rowKey].sort((a, b) => parseInt(a.Seat_Number.substring(1)) - parseInt(b.Seat_Number.substring(1)));
-                    const rowType = rowSeats[0].Seat_Type;
-                    const tierPrice = getTierPrice(rowType);
-
-                    return `
-                        <div class="seat-tier-section">
-                            <div class="seat-tier-header">
-                                <div class="tier-name">
-                                    <span>Row ${rowKey}</span>
-                                    <span class="tier-badge ${rowType.toLowerCase()}">${rowType}</span>
-                                </div>
-                                <div class="tier-price">₹${tierPrice}</div>
+                ${tiers.map(tier => `
+                    <div class="seat-tier-section">
+                        <div class="seat-tier-banner">
+                            <div class="tier-name">
+                                <span class="tier-badge ${tier.type.toLowerCase()}">${tier.type}</span>
+                                <span>${tier.rows.length === 1 ? 'Row ' + tier.rows[0].rowKey : 'Rows ' + tier.rows[0].rowKey + ' – ' + tier.rows[tier.rows.length - 1].rowKey}</span>
                             </div>
-
-                            <div class="seat-row">
-                                <div class="row-label">${rowKey}</div>
-                                <div class="seat-cluster">
-                                    ${rowSeats.map(seat => {
-                                        const isBooked = seat.Status === 'BOOKED';
-                                        const isSelected = this.selectedSeats.some(s => s.Seat_ID === seat.Seat_ID);
-                                        const seatClass = isBooked ? 'seat booked' : (isSelected ? 'seat selected' : 'seat');
-
-                                        return `
-                                            <div 
-                                                class="${seatClass}" 
-                                                data-seat-id="${seat.Seat_ID}"
-                                                data-seat-number="${seat.Seat_Number}"
-                                                data-seat-type="${seat.Seat_Type}"
-                                                data-price="${tierPrice}"
-                                                onclick="window.App.toggleSeatSelection(this)"
-                                                title="${seat.Seat_Number} - ${seat.Seat_Type} (₹${tierPrice})"
-                                            >
-                                                ${seat.Seat_Number}
-                                            </div>
-                                        `;
-                                    }).join('')}
-                                </div>
-                                <div class="row-label">${rowKey}</div>
-                            </div>
+                            <div class="tier-price">₹${tier.price}</div>
                         </div>
-                    `;
-                }).join('')}
 
-                <!-- Seat Legend -->
+                        ${tier.rows.map(r => {
+                            const numSeats = r.seats.length;
+                            const centerIdx = (numSeats - 1) / 2;
+                            // Elliptical curvature parameters: center is closer to screen, sides curve backward
+                            const maxDepth = Math.round(Math.min(30, Math.max(16, (numSeats / 20) * 25)));
+                            const maxAngle = Math.min(10, Math.max(6, (numSeats / 20) * 8.5));
+
+                            return `
+                                <div class="seat-row" style="padding-bottom: ${maxDepth + 6}px;">
+                                    <div class="row-label" style="transform: translateY(${maxDepth}px);">${r.rowKey}</div>
+                                    <div class="seat-cluster">
+                                        ${r.seats.map((seat, idx) => {
+                                            const isBooked = seat.Status === 'BOOKED';
+                                            const isSelected = this.selectedSeats.some(s => s.Seat_ID === seat.Seat_ID);
+                                            const seatClass = isBooked ? 'seat booked' : (isSelected ? 'seat selected' : 'seat');
+
+                                            // Normalized offset from row center: t in [-1.0, 1.0]
+                                            const t = centerIdx > 0 ? (idx - centerIdx) / centerIdx : 0;
+                                            // Symmetrical elliptical displacement: center y = 0, sides y = maxDepth
+                                            const curveY = (maxDepth * t * t).toFixed(1);
+                                            // Tangential tilt facing screen center
+                                            const rotDeg = (-t * maxAngle).toFixed(2);
+
+                                            return `
+                                                <div 
+                                                    class="${seatClass}" 
+                                                    data-seat-id="${seat.Seat_ID}"
+                                                    data-seat-number="${seat.Seat_Number}"
+                                                    data-seat-type="${seat.Seat_Type}"
+                                                    data-price="${tier.price}"
+                                                    onclick="window.App.toggleSeatSelection(this)"
+                                                    title="${seat.Seat_Number} - ${seat.Seat_Type} (₹${tier.price})"
+                                                    style="--curve-y: ${curveY}px; --curve-rot: ${rotDeg}deg;"
+                                                >
+                                                    ${seat.Seat_Number}
+                                                </div>
+                                            `;
+                                        }).join('')}
+                                    </div>
+                                    <div class="row-label" style="transform: translateY(${maxDepth}px);">${r.rowKey}</div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                `).join('')}
+
+                <!-- 4. Seat Legend -->
                 <div class="seat-legend">
                     <div class="legend-item">
                         <div class="legend-box available"></div>
@@ -540,9 +588,40 @@ class MTRSApp {
                     </div>
                     <div class="legend-item">
                         <div class="legend-box booked"></div>
-                        <span>Reserved / Sold</span>
+                        <span>Occupied</span>
                     </div>
                 </div>
+
+                <!-- 5. Booking Summary Panel (Below Seating Arrangement) -->
+                <div class="booking-summary-panel" id="booking-summary-panel">
+                    <div class="booking-summary-content">
+                        <div class="summary-info-group">
+                            <div class="summary-item">
+                                <span class="summary-label">Selected Seats (<span id="summary-seat-count">${selectedCount}</span>)</span>
+                                <div class="summary-seats-container" id="summary-seats-container">
+                                    ${selectedCount === 0 ? 
+                                        '<span class="summary-empty-text">No seats selected. Click an available seat above.</span>' : 
+                                        this.selectedSeats.map(s => `<span class="selected-seat-chip">${s.Seat_Number}</span>`).join('')}
+                                </div>
+                            </div>
+                            <div class="summary-item summary-price-item">
+                                <span class="summary-label">Total Ticket Price</span>
+                                <div class="summary-total-price" id="summary-total-price">₹${subtotal.toFixed(2)}</div>
+                            </div>
+                        </div>
+                        <div class="summary-action-group">
+                            <button 
+                                class="btn-primary summary-book-btn ${selectedCount === 0 ? 'disabled' : ''}" 
+                                id="summary-proceed-btn" 
+                                onclick="window.App.openCheckoutModal()"
+                                ${selectedCount === 0 ? 'disabled' : ''}
+                            >
+                                Proceed to Checkout →
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         `;
     }
@@ -584,6 +663,36 @@ class MTRSApp {
 
     updateFloatingDock() {
         const count = this.selectedSeats.length;
+        const subtotal = this.selectedSeats.reduce((sum, s) => sum + s.Price, 0);
+
+        // Update in-page booking summary (Requirement 5)
+        const summaryCountEl = document.getElementById('summary-seat-count');
+        const summarySeatsEl = document.getElementById('summary-seats-container');
+        const summaryPriceEl = document.getElementById('summary-total-price');
+        const summaryBtn = document.getElementById('summary-proceed-btn');
+
+        if (summaryCountEl) summaryCountEl.textContent = count;
+        if (summaryPriceEl) summaryPriceEl.textContent = `₹${subtotal.toFixed(2)}`;
+        if (summarySeatsEl) {
+            if (count === 0) {
+                summarySeatsEl.innerHTML = '<span class="summary-empty-text">No seats selected. Click an available seat above.</span>';
+            } else {
+                summarySeatsEl.innerHTML = this.selectedSeats.map(s => `
+                    <span class="selected-seat-chip">${s.Seat_Number}</span>
+                `).join('');
+            }
+        }
+        if (summaryBtn) {
+            if (count === 0) {
+                summaryBtn.classList.add('disabled');
+                summaryBtn.setAttribute('disabled', 'true');
+            } else {
+                summaryBtn.classList.remove('disabled');
+                summaryBtn.removeAttribute('disabled');
+            }
+        }
+
+        // Also update bottom floating dock
         if (count === 0) {
             this.toggleDock(false);
             return;
@@ -598,7 +707,6 @@ class MTRSApp {
             `).join('');
         }
 
-        const subtotal = this.selectedSeats.reduce((sum, s) => sum + s.Price, 0);
         if (totalAmountEl) {
             totalAmountEl.textContent = `₹${subtotal.toFixed(2)}`;
         }
@@ -703,6 +811,7 @@ class MTRSApp {
 
             this.closeCheckoutModal();
             this.toggleDock(false);
+            this.selectedSeats = [];
 
             this.showToast("Booking successful! Database transaction committed.", "success");
 
