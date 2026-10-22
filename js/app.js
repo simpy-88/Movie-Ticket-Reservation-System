@@ -75,6 +75,19 @@ class MTRSApp {
         this.renderNavbarUser();
         this.renderHeroBanner();
         this.renderMovieGrid();
+
+        // Ensure original high-resolution uploaded posters render as soon as IndexedDB preloads
+        window.addEventListener('mtrs:posters-loaded', () => {
+            this.renderHeroBanner();
+            this.renderMovieGrid();
+        });
+
+        if (window.MTRSImageStore && window.MTRSImageStore.initPromise) {
+            window.MTRSImageStore.initPromise.then(() => {
+                this.renderHeroBanner();
+                this.renderMovieGrid();
+            });
+        }
     }
 
     setupEventListeners() {

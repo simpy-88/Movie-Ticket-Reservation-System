@@ -709,8 +709,8 @@ class MTRSAdminPanel {
             return;
         }
 
-        if (file.size > 5 * 1024 * 1024) {
-            errorEl.textContent = `File size is ${(file.size / (1024 * 1024)).toFixed(2)}MB, exceeding the 5MB limit.`;
+        if (file.size > 35 * 1024 * 1024) {
+            errorEl.textContent = `File size is ${(file.size / (1024 * 1024)).toFixed(2)}MB, exceeding the 35MB limit.`;
             errorEl.style.display = 'block';
             input.value = '';
             return;

@@ -78,6 +78,8 @@
                                 this.posterUrls[rec.movieId] = URL.createObjectURL(rec.blob);
                             }
                         });
+                        // Dispatch event so active views re-render with the original high-resolution uploaded images
+                        window.dispatchEvent(new CustomEvent('mtrs:posters-loaded', { detail: { posterUrls: this.posterUrls } }));
                         resolve();
                     };
 
@@ -113,11 +115,11 @@
                 throw new Error(`Invalid file type (${fileOrBlob.type}). Please upload a JPEG, PNG, or WebP image.`);
             }
 
-            // Validate file size: maximum 5 MB
-            const maxSize = 5 * 1024 * 1024;
+            // Validate file size: up to 35 MB to accommodate full 4K uncompressed/lossless posters
+            const maxSize = 35 * 1024 * 1024;
             if (fileOrBlob.size > maxSize) {
                 const sizeMB = (fileOrBlob.size / (1024 * 1024)).toFixed(1);
-                throw new Error(`File is too large (${sizeMB} MB). Maximum allowed size is 5 MB.`);
+                throw new Error(`File is too large (${sizeMB} MB). Maximum allowed size is 35 MB.`);
             }
 
             await this.initPromise;

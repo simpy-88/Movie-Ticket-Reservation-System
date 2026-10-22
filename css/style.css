@@ -411,11 +411,29 @@ body {
     overflow: hidden;
     box-shadow: 0 15px 35px rgba(0,0,0,0.7), 0 0 20px rgba(229, 9, 20, 0.2);
     border: 1px solid rgba(255,255,255,0.15);
-    transition: var(--transition);
+    background: var(--bg-surface-elevated);
+    position: relative;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
 }
 
 .hero-poster-preview:hover {
-    transform: scale(1.03) rotate(0.5deg);
+    transform: translateY(-4px) scale(1.02);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.8), 0 0 25px rgba(229, 9, 20, 0.3);
+}
+
+.hero-poster-img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+    object-position: center top;
+    aspect-ratio: 2/3;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: high-quality;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    transform: translateZ(0);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* ============================================================================
@@ -545,12 +563,19 @@ body {
     height: 100%;
     display: block;
     object-fit: cover;
-    transition: var(--transition);
+    object-position: center top;
+    aspect-ratio: 2/3;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: high-quality;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    transform: translateZ(0);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .movie-card:hover .movie-svg-poster,
 .movie-card:hover .movie-poster-img {
-    transform: scale(1.05);
+    transform: scale(1.04);
 }
 
 .admin-upload-grid {

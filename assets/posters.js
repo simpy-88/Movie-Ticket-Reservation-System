@@ -266,7 +266,7 @@
          * Resolves best poster URL or resource
          */
         resolvePoster(movieOrId, options = {}) {
-            const size = options.size || 'w500'; // 'w500', 'w780', 'original'
+            const size = options.size || 'w780'; // Default to high resolution to avoid low-res thumbnail artifacts
             const rec = this.findRecord(movieOrId);
             const movieId = typeof movieOrId === 'string' ? movieOrId : (movieOrId ? movieOrId.Movie_ID : '');
 
@@ -301,9 +301,10 @@
                 return rec.customPoster;
             }
 
-            // Priority 3: Existing verified poster registry entry (TMDb verified CDN)
+            // Priority 3: Existing verified poster registry entry (prefer high-res over compressed 500px thumbnails)
             if (rec) {
                 if (size === 'w780' && rec.posterHiRes) return rec.posterHiRes;
+                if (rec.posterHiRes) return rec.posterHiRes;
                 if (rec.posterUrl) return rec.posterUrl;
             }
 
@@ -334,7 +335,7 @@
          */
         renderPosterHtml(movieOrId, className = 'movie-poster-img', altText = '') {
             const rec = this.findRecord(movieOrId);
-            const posterUrl = this.resolvePoster(movieOrId);
+            const posterUrl = this.resolvePoster(movieOrId, { size: 'w780' });
             const movieTitle = (typeof movieOrId === 'object' && movieOrId.Movie_Name) ? 
                 movieOrId.Movie_Name : (rec ? rec.title : 'Movie Poster');
             const alt = altText || `${movieTitle} Theatrical Poster`;
@@ -346,7 +347,8 @@
                         src="${posterUrl}" 
                         alt="${alt}" 
                         class="${className}" 
-                        loading="lazy"
+                        loading="eager"
+                        decoding="async"
                         referrerpolicy="no-referrer"
                         onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='block';"
                     />
