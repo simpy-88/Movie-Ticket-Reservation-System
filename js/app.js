@@ -846,6 +846,32 @@ class MTRSApp {
     }
 
     confirmBookingAndPay() {
+        if (this._isBookingInProgress) {
+            return;
+        }
+
+        if (!this.selectedSeats || this.selectedSeats.length === 0) {
+            this.showToast("Please select at least 1 seat to proceed.", "error");
+            return;
+        }
+
+        if (!this.selectedShow) {
+            this.showToast("No showtime selected. Please select a showtime.", "error");
+            return;
+        }
+
+        if (!this.currentCustomer) {
+            this.showToast("Please sign in or select a customer profile to proceed.", "error");
+            return;
+        }
+
+        this._isBookingInProgress = true;
+        const confirmBtn = document.querySelector('#checkout-modal .btn-primary');
+        if (confirmBtn) {
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = '⏳ Processing Transaction...';
+        }
+
         const paymentModeSelect = document.getElementById('checkout-payment-mode');
         const customerId = this.currentCustomer.Customer_ID;
         const paymentMode = paymentModeSelect ? paymentModeSelect.value : 'UPI';
@@ -855,14 +881,9 @@ class MTRSApp {
         const gst = parseFloat((subtotal * 0.18).toFixed(2));
         const grandTotal = parseFloat((subtotal + convenienceFee + gst).toFixed(2));
 
-        // Generate next Booking_ID and Payment_ID
-        const currentBookings = this.engine.getTable('BOOKING');
-        const nextBkNum = currentBookings.length + 1;
-        const bookingId = `BK${nextBkNum < 10 ? '0' + nextBkNum : nextBkNum}`;
-
-        const currentPayments = this.engine.getTable('PAYMENT');
-        const nextPayNum = currentPayments.length + 1;
-        const paymentId = `PAY${nextPayNum < 10 ? '0' + nextPayNum : nextPayNum}`;
+        // Generate guaranteed-unique IDs through engine sequence (prevents duplicate BK07 / PAY07)
+        const bookingId = this.engine.generateNextBookingId();
+        const paymentId = this.engine.generateNextPaymentId();
 
         const seatIds = this.selectedSeats.map(s => s.Seat_ID);
 
@@ -885,14 +906,36 @@ class MTRSApp {
             this.toggleDock(false);
             this.selectedSeats = [];
 
-            this.showToast("Booking successful! Database transaction committed.", "success");
+            this.showToast(`Booking ${txResult.booking.Booking_ID} successful! Database transaction committed.`, "success");
 
-            // Open E-Ticket Modal
-            this.openTicketModal(txResult);
+            // Open E-Ticket Modal safely without risking transaction rollback
+            try {
+                this.openTicketModal(txResult);
+            } catch (ticketError) {
+                console.error("Ticket display error (booking preserved in DB):", ticketError);
+                this.showToast(`Booking ${txResult.booking.Booking_ID} saved! View ticket in My Bookings.`, "info");
+            }
+
+            // Refresh My Bookings if currently visible
+            const bookingsView = document.getElementById('view-my-bookings');
+            if (bookingsView && bookingsView.style.display === 'block') {
+                this.renderMyBookings();
+            }
+
+            // Refresh Admin Dashboard if open
+            if (window.MTRSAdmin) {
+                window.MTRSAdmin.refreshDashboard();
+            }
 
         } catch (error) {
             console.error("Booking Transaction Failed:", error);
             this.showToast(error.message, "error");
+        } finally {
+            this._isBookingInProgress = false;
+            if (confirmBtn) {
+                confirmBtn.disabled = false;
+                confirmBtn.innerHTML = '🔒 Confirm &amp; Commit Transaction';
+            }
         }
     }
 
@@ -905,13 +948,28 @@ class MTRSApp {
 
         const booking = txResult.booking;
         const payment = txResult.payment;
-        const movie = this.selectedMovie;
-        const show = this.selectedShow;
+        const show = this.engine.getTable('SHOWS').find(s => s.Show_ID === booking.Show_ID) || this.selectedShow || {};
+        const movie = this.engine.getTable('MOVIE').find(m => m.Movie_ID === show.Movie_ID) || this.selectedMovie || { Movie_Name: 'Cinema Movie', Language: 'English', Duration: 150 };
         const screen = this.engine.getTable('SCREEN').find(s => s.Screen_ID === show.Screen_ID);
         const theater = this.engine.getTable('THEATER').find(t => t.Theater_ID === (screen ? screen.Theater_ID : ''));
         const customer = this.engine.getTable('CUSTOMER').find(c => c.Customer_ID === booking.Customer_ID) || this.currentCustomer;
 
-        const seatNumbers = this.selectedSeats.map(s => s.Seat_Number).join(', ');
+        // Resolve booked seats accurately from transaction result or relational database
+        let seatNumbers = '';
+        if (Array.isArray(txResult.bookedSeats) && txResult.bookedSeats.length > 0) {
+            seatNumbers = txResult.bookedSeats.map(bs => {
+                const sObj = this.engine.getTable('SEAT').find(s => s.Seat_ID === bs.Seat_ID);
+                return sObj ? sObj.Seat_Number : bs.Seat_ID;
+            }).join(', ');
+        } else if (Array.isArray(this.selectedSeats) && this.selectedSeats.length > 0) {
+            seatNumbers = this.selectedSeats.map(s => s.Seat_Number).join(', ');
+        } else {
+            const dbSeats = this.engine.getTable('BOOKED_SEAT').filter(bs => bs.Booking_ID === booking.Booking_ID);
+            seatNumbers = dbSeats.map(bs => {
+                const sObj = this.engine.getTable('SEAT').find(s => s.Seat_ID === bs.Seat_ID);
+                return sObj ? sObj.Seat_Number : bs.Seat_ID;
+            }).join(', ');
+        }
 
         const container = document.getElementById('ticket-modal-content');
         if (container) {
@@ -1178,7 +1236,8 @@ class MTRSApp {
 
         this.openTicketModal({
             booking,
-            payment: payment || { Payment_ID: 'PAY_REC', Payment_Mode: 'Cash', Amount: booking.Ticket_Price }
+            payment: payment || { Payment_ID: 'PAY_REC', Payment_Mode: 'Cash', Amount: booking.Ticket_Price },
+            bookedSeats
         });
     }
 

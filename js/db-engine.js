@@ -34,6 +34,11 @@ class MTRSRelationalEngine {
                         changed = true;
                     }
                 }
+                // Ensure SEQUENCES object exists in database
+                if (!this.db.SEQUENCES || typeof this.db.SEQUENCES !== 'object') {
+                    this.db.SEQUENCES = {};
+                    changed = true;
+                }
                 if (changed) this.save();
             } catch (e) {
                 console.error("Failed to parse stored DB, resetting to Chennai seed:", e);
@@ -51,8 +56,90 @@ class MTRSRelationalEngine {
     resetToSeed() {
         // Deep clone seed data
         this.db = JSON.parse(JSON.stringify(window.SEED_DATA));
+        if (!this.db.SEQUENCES || typeof this.db.SEQUENCES !== 'object') {
+            this.db.SEQUENCES = {};
+        }
         this.save();
         console.log("MTRS Database restored to default Chennai cinema seed data.");
+    }
+
+    // ------------------------------------------------------------------------
+    // ROBUST PERSISTENT SEQUENCE & ID GENERATORS
+    // ------------------------------------------------------------------------
+    syncSequence(tableName, idValue, prefix) {
+        if (!this.db.SEQUENCES) this.db.SEQUENCES = {};
+        if (typeof idValue === 'string' && idValue.startsWith(prefix)) {
+            const num = parseInt(idValue.substring(prefix.length), 10);
+            if (!isNaN(num)) {
+                const cur = parseInt(this.db.SEQUENCES[tableName], 10) || 0;
+                if (num > cur) {
+                    this.db.SEQUENCES[tableName] = num;
+                }
+            }
+        }
+    }
+
+    generateNextId(tableName, idField, prefix, padLength = 2) {
+        if (!this.db.SEQUENCES) this.db.SEQUENCES = {};
+
+        const table = this.getTable(tableName);
+
+        // Find highest numeric ID currently stored in the relation
+        let maxExisting = 0;
+        for (const row of table) {
+            const val = String(row[idField] || '');
+            if (val.startsWith(prefix)) {
+                const num = parseInt(val.substring(prefix.length), 10);
+                if (!isNaN(num) && num > maxExisting) {
+                    maxExisting = num;
+                }
+            }
+        }
+
+        // Persistent sequence counter avoids reusing IDs of deleted/cancelled records
+        const currentSeq = parseInt(this.db.SEQUENCES[tableName], 10) || 0;
+        let nextNum = Math.max(maxExisting, currentSeq) + 1;
+
+        // Guaranteed collision prevention: loop until an unused ID is found
+        let candidateId = `${prefix}${String(nextNum).padStart(padLength, '0')}`;
+        while (table.some(row => row[idField] === candidateId)) {
+            nextNum++;
+            candidateId = `${prefix}${String(nextNum).padStart(padLength, '0')}`;
+        }
+
+        // Update persistent sequence counter
+        this.db.SEQUENCES[tableName] = nextNum;
+        this.save();
+
+        return candidateId;
+    }
+
+    generateNextBookingId() {
+        return this.generateNextId('BOOKING', 'Booking_ID', 'BK', 2);
+    }
+
+    generateNextPaymentId() {
+        return this.generateNextId('PAYMENT', 'Payment_ID', 'PAY', 2);
+    }
+
+    generateNextCustomerId() {
+        return this.generateNextId('CUSTOMER', 'Customer_ID', 'CU', 2);
+    }
+
+    generateNextShowId() {
+        return this.generateNextId('SHOWS', 'Show_ID', 'SH', 2);
+    }
+
+    generateNextMovieId() {
+        return this.generateNextId('MOVIE', 'Movie_ID', 'M', 2);
+    }
+
+    generateNextScreenId() {
+        return this.generateNextId('SCREEN', 'Screen_ID', 'SC', 2);
+    }
+
+    generateNextTheaterId() {
+        return this.generateNextId('THEATER', 'Theater_ID', 'TH', 2);
     }
 
     // ------------------------------------------------------------------------
@@ -76,8 +163,7 @@ class MTRSRelationalEngine {
             return existing; // Return existing customer
         }
 
-        const nextNum = customers.length + 1;
-        const customerId = `CU${nextNum < 10 ? '0' + nextNum : nextNum}`;
+        const customerId = this.generateNextCustomerId();
         const newCustomer = {
             Customer_ID: customerId,
             Customer_Name: name.trim(),
@@ -145,115 +231,178 @@ class MTRSRelationalEngine {
 
     /**
      * Atomic Transaction: sp_BookTicketTransaction
-     * Validates constraints, checks seat conflict via trigger, and inserts records.
+     * Validates constraints, checks seat conflict via trigger, generates unique IDs,
+     * and performs atomic commit with full rollback capability.
      */
     sp_BookTicketTransaction({
-        bookingId,
+        bookingId = null,
         customerId,
         showId,
         format,
         ticketPrice,
-        paymentId,
-        paymentMode,
+        paymentId = null,
+        paymentMode = 'UPI',
         amount,
         seatIds
     }) {
-        // 1. Validate Foreign Keys
-        const customer = this.getTable('CUSTOMER').find(c => c.Customer_ID === customerId);
-        if (!customer) throw new Error(`Integrity Error: Customer '${customerId}' does not exist.`);
+        // Snapshot existing tables for true atomic rollback if any error occurs
+        const bookingSnapshot = JSON.parse(JSON.stringify(this.getTable('BOOKING')));
+        const bookedSeatSnapshot = JSON.parse(JSON.stringify(this.getTable('BOOKED_SEAT')));
+        const paymentSnapshot = JSON.parse(JSON.stringify(this.getTable('PAYMENT')));
 
-        const show = this.getTable('SHOWS').find(s => s.Show_ID === showId);
-        if (!show) throw new Error(`Integrity Error: Show '${showId}' does not exist.`);
-
-        // 2. Validate CHECK Constraints
-        const validFormats = ['2D', '3D', 'IMAX 2D', 'IMAX 3D', 'P[XL] 2D', 'P[XL] 3D', 'BIGPIX 2D', 'BIGPIX 3D'];
-        if (!validFormats.includes(format)) {
-            throw new Error(`Check Constraint Violation: Format '${format}' is invalid.`);
-        }
-
-        const validModes = ['Credit Card', 'Debit Card', 'UPI', 'Net Banking', 'Cash'];
-        if (!validModes.includes(paymentMode)) {
-            throw new Error(`Check Constraint Violation: Payment Mode '${paymentMode}' is invalid.`);
-        }
-
-        if (amount <= 0) {
-            throw new Error(`Check Constraint Violation: Amount must be strictly greater than 0.`);
-        }
-
-        if (!seatIds || seatIds.length === 0) {
-            throw new Error(`Validation Error: At least one seat must be selected for booking.`);
-        }
-
-        // 3. TRIGGER 1: trg_PreventDoubleBooking
-        // Check if any seat is already booked for this show
-        const showBookings = this.getTable('BOOKING').filter(b => b.Show_ID === showId);
-        const bookingIds = new Set(showBookings.map(b => b.Booking_ID));
-        const alreadyBookedSeats = this.getTable('BOOKED_SEAT')
-            .filter(bs => bookingIds.has(bs.Booking_ID))
-            .map(bs => bs.Seat_ID);
-
-        for (const seatId of seatIds) {
-            if (alreadyBookedSeats.includes(seatId)) {
-                const seatInfo = this.getTable('SEAT').find(s => s.Seat_ID === seatId);
-                const seatNum = seatInfo ? seatInfo.Seat_Number : seatId;
-                throw new Error(`Trigger trg_PreventDoubleBooking Fired: Seat ${seatNum} is already booked for this show!`);
-            }
-        }
-
-        // 4. TRIGGER 2: trg_ValidateSeatScreen
-        // Ensure every seat belongs to the screen hosting the show
-        for (const seatId of seatIds) {
-            const seatObj = this.getTable('SEAT').find(s => s.Seat_ID === seatId);
-            if (!seatObj) {
-                throw new Error(`Integrity Error: Seat '${seatId}' does not exist.`);
-            }
-            if (seatObj.Screen_ID !== show.Screen_ID) {
-                throw new Error(`Trigger trg_ValidateSeatScreen Fired: Seat ${seatObj.Seat_Number} does not belong to Screen ${show.Screen_ID}.`);
-            }
-        }
-
-        // 5. Unique Primary Key checks
-        const existingBooking = this.getTable('BOOKING').find(b => b.Booking_ID === bookingId);
-        if (existingBooking) throw new Error(`Primary Key Violation: Booking ID '${bookingId}' already exists.`);
-
-        const existingPayment = this.getTable('PAYMENT').find(p => p.Payment_ID === paymentId);
-        if (existingPayment) throw new Error(`Primary Key Violation: Payment ID '${paymentId}' already exists.`);
-
-        // 6. ATOMIC COMMIT
-        const newBooking = {
-            Booking_ID: bookingId,
-            Customer_ID: customerId,
-            Show_ID: showId,
-            Booking_Date: new Date().toISOString().replace('T', ' ').substring(0, 19),
-            Ticket_Price: parseFloat(ticketPrice),
-            Format: format
+        const rollback = () => {
+            this.db.BOOKING = bookingSnapshot;
+            this.db.BOOKED_SEAT = bookedSeatSnapshot;
+            this.db.PAYMENT = paymentSnapshot;
+            this.save();
         };
 
-        const newBookedSeats = seatIds.map(seatId => ({
-            Booking_ID: bookingId,
-            Seat_ID: seatId
-        }));
+        try {
+            // 1. Validate Foreign Keys
+            if (!customerId) {
+                throw new Error("Integrity Error: Customer ID is required.");
+            }
+            const customer = this.getTable('CUSTOMER').find(c => c.Customer_ID === customerId);
+            if (!customer) {
+                throw new Error(`Integrity Error: Customer '${customerId}' does not exist.`);
+            }
 
-        const newPayment = {
-            Payment_ID: paymentId,
-            Booking_ID: bookingId,
-            Payment_Mode: paymentMode,
-            Amount: parseFloat(amount),
-            Payment_Date: new Date().toISOString().replace('T', ' ').substring(0, 19)
-        };
+            if (!showId) {
+                throw new Error("Integrity Error: Show ID is required.");
+            }
+            const show = this.getTable('SHOWS').find(s => s.Show_ID === showId);
+            if (!show) {
+                throw new Error(`Integrity Error: Show '${showId}' does not exist.`);
+            }
 
-        this.getTable('BOOKING').push(newBooking);
-        this.getTable('BOOKED_SEAT').push(...newBookedSeats);
-        this.getTable('PAYMENT').push(newPayment);
+            // 2. Validate CHECK Constraints
+            const canonicalFormats = ['2D', '3D', 'IMAX 2D', 'IMAX 3D', 'P[XL] 2D', 'P[XL] 3D', 'BIGPIX 2D', 'BIGPIX 3D'];
+            const normalizedFormat = (format || '').trim();
+            const matchedFormat = canonicalFormats.find(f => f.toLowerCase() === normalizedFormat.toLowerCase()) || normalizedFormat;
 
-        this.save();
+            if (!canonicalFormats.includes(matchedFormat)) {
+                throw new Error(`Check Constraint Violation: Format '${format}' is invalid.`);
+            }
 
-        return {
-            success: true,
-            booking: newBooking,
-            bookedSeats: newBookedSeats,
-            payment: newPayment
-        };
+            const canonicalModes = ['Credit Card', 'Debit Card', 'UPI', 'Net Banking', 'Cash'];
+            const normalizedMode = (paymentMode || '').trim();
+            const matchedMode = canonicalModes.find(m => m.toLowerCase() === normalizedMode.toLowerCase()) || normalizedMode;
+
+            if (!canonicalModes.includes(matchedMode)) {
+                throw new Error(`Check Constraint Violation: Payment Mode '${paymentMode}' is invalid.`);
+            }
+
+            const numericAmount = parseFloat(amount);
+            if (isNaN(numericAmount) || numericAmount <= 0) {
+                throw new Error(`Check Constraint Violation: Amount must be strictly greater than 0.`);
+            }
+
+            const numericTicketPrice = parseFloat(ticketPrice);
+            if (isNaN(numericTicketPrice) || numericTicketPrice < 0) {
+                throw new Error(`Check Constraint Violation: Ticket Price must be non-negative.`);
+            }
+
+            if (!Array.isArray(seatIds) || seatIds.length === 0) {
+                throw new Error(`Validation Error: At least one seat must be selected for booking.`);
+            }
+
+            // Deduplicate seatIds
+            const uniqueSeatIds = [...new Set(seatIds)];
+
+            // 3. TRIGGER 1: trg_PreventDoubleBooking
+            // Check if any seat is already booked for this show
+            const showBookings = this.getTable('BOOKING').filter(b => b.Show_ID === showId);
+            const bookingIds = new Set(showBookings.map(b => b.Booking_ID));
+            const alreadyBookedSeats = new Set(
+                this.getTable('BOOKED_SEAT')
+                    .filter(bs => bookingIds.has(bs.Booking_ID))
+                    .map(bs => bs.Seat_ID)
+            );
+
+            for (const seatId of uniqueSeatIds) {
+                if (alreadyBookedSeats.has(seatId)) {
+                    const seatInfo = this.getTable('SEAT').find(s => s.Seat_ID === seatId);
+                    const seatNum = seatInfo ? seatInfo.Seat_Number : seatId;
+                    throw new Error(`Trigger trg_PreventDoubleBooking Fired: Seat ${seatNum} is already booked for this show!`);
+                }
+            }
+
+            // 4. TRIGGER 2: trg_ValidateSeatScreen
+            // Ensure every seat belongs to the screen hosting the show
+            for (const seatId of uniqueSeatIds) {
+                const seatObj = this.getTable('SEAT').find(s => s.Seat_ID === seatId);
+                if (!seatObj) {
+                    throw new Error(`Integrity Error: Seat '${seatId}' does not exist.`);
+                }
+                if (seatObj.Screen_ID !== show.Screen_ID) {
+                    throw new Error(`Trigger trg_ValidateSeatScreen Fired: Seat ${seatObj.Seat_Number} does not belong to Screen ${show.Screen_ID}.`);
+                }
+            }
+
+            // 5. Unique Primary Key generation & checks
+            let finalBookingId = bookingId ? String(bookingId).trim() : null;
+            if (finalBookingId) {
+                const existingBooking = this.getTable('BOOKING').find(b => b.Booking_ID === finalBookingId);
+                if (existingBooking) {
+                    throw new Error(`Primary Key Violation: Booking ID '${finalBookingId}' already exists.`);
+                }
+            } else {
+                finalBookingId = this.generateNextBookingId();
+            }
+
+            let finalPaymentId = paymentId ? String(paymentId).trim() : null;
+            if (finalPaymentId) {
+                const existingPayment = this.getTable('PAYMENT').find(p => p.Payment_ID === finalPaymentId);
+                if (existingPayment) {
+                    throw new Error(`Primary Key Violation: Payment ID '${finalPaymentId}' already exists.`);
+                }
+            } else {
+                finalPaymentId = this.generateNextPaymentId();
+            }
+
+            // Ensure sequences track the IDs used
+            this.syncSequence('BOOKING', finalBookingId, 'BK');
+            this.syncSequence('PAYMENT', finalPaymentId, 'PAY');
+
+            // 6. ATOMIC COMMIT
+            const newBooking = {
+                Booking_ID: finalBookingId,
+                Customer_ID: customerId,
+                Show_ID: showId,
+                Booking_Date: new Date().toISOString().replace('T', ' ').substring(0, 19),
+                Ticket_Price: numericTicketPrice,
+                Format: matchedFormat
+            };
+
+            const newBookedSeats = uniqueSeatIds.map(seatId => ({
+                Booking_ID: finalBookingId,
+                Seat_ID: seatId
+            }));
+
+            const newPayment = {
+                Payment_ID: finalPaymentId,
+                Booking_ID: finalBookingId,
+                Payment_Mode: matchedMode,
+                Amount: numericAmount,
+                Payment_Date: new Date().toISOString().replace('T', ' ').substring(0, 19)
+            };
+
+            this.getTable('BOOKING').push(newBooking);
+            this.getTable('BOOKED_SEAT').push(...newBookedSeats);
+            this.getTable('PAYMENT').push(newPayment);
+
+            this.save();
+
+            return {
+                success: true,
+                booking: newBooking,
+                bookedSeats: newBookedSeats,
+                payment: newPayment
+            };
+        } catch (error) {
+            rollback();
+            throw error;
+        }
     }
 
     /**

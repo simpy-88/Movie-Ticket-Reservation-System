@@ -806,9 +806,8 @@ class MTRSAdminPanel {
                 }
             }
         } else {
-            // Register new movie with next sequential ID
-            const nextNum = movies.length + 1;
-            targetMovieId = `M${nextNum < 10 ? '0' + nextNum : nextNum}`;
+            // Register new movie with guaranteed unique ID
+            targetMovieId = this.engine.generateNextMovieId();
             movies.push({
                 Movie_ID: targetMovieId,
                 Movie_Name: name,
@@ -1068,8 +1067,7 @@ class MTRSAdminPanel {
                 existing.Country = country;
             }
         } else {
-            const nextNum = theaters.length + 1;
-            const newId = `TH${nextNum < 10 ? '0' + nextNum : nextNum}`;
+            const newId = this.engine.generateNextTheaterId();
             theaters.push({
                 Theater_ID: newId,
                 Theater_Name: name,
@@ -1169,8 +1167,7 @@ class MTRSAdminPanel {
                 existing.Audio_Tech = audio;
             }
         } else {
-            const nextNum = screens.length + 1;
-            const newScreenId = `SC${nextNum < 10 ? '0' + nextNum : nextNum}`;
+            const newScreenId = this.engine.generateNextScreenId();
             screens.push({
                 Screen_ID: newScreenId,
                 Theater_ID: theatreId,
