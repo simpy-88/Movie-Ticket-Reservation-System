@@ -195,6 +195,8 @@
         <!-- Admin Tab Navigation -->
         <div class="admin-tabs">
             <button class="admin-tab-btn active" data-tab="shows">📅 Show Schedule Manager</button>
+            <button class="admin-tab-btn" data-tab="movies">🎬 Movie &amp; Poster Manager</button>
+            <button class="admin-tab-btn" data-tab="theatres">🏛️ Theatre &amp; Screen Manager</button>
             <button class="admin-tab-btn" data-tab="screens">🖥️ 49 Auditoriums &amp; Telemetry</button>
             <button class="admin-tab-btn" data-tab="revenue">📈 Revenue &amp; Occupancy (sp_GetShowRevenueReport)</button>
             <button class="admin-tab-btn" data-tab="relations">🗄️ Relational Schema Browser (9 Tables)</button>
@@ -203,6 +205,16 @@
         <!-- Admin Tab 1: Shows Schedule -->
         <div id="admin-tab-shows" class="admin-tab-content active">
             <div class="data-table-container" id="admin-shows-table-container"></div>
+        </div>
+
+        <!-- Admin Tab: Movie & Poster Manager (Feature 2 & 3) -->
+        <div id="admin-tab-movies" class="admin-tab-content">
+            <div id="admin-movies-container"></div>
+        </div>
+
+        <!-- Admin Tab: Theatre & Screen Manager (Feature 4) -->
+        <div id="admin-tab-theatres" class="admin-tab-content">
+            <div id="admin-theatres-container"></div>
         </div>
 
         <!-- Admin Tab 2: Screen Capacities & Telemetry -->
@@ -443,7 +455,244 @@
         </div>
     </div>
 
+    <!-- ====================================================================
+         ADD / EDIT MOVIE MODAL (Admin Movie & Poster Management - Feature 2 & 3)
+         ==================================================================== -->
+    <div id="movie-modal" class="modal-backdrop">
+        <div class="modal-box" style="max-width: 680px; max-height: 90vh; overflow-y: auto;">
+            <button class="modal-close-btn" onclick="window.MTRSAdmin.closeMovieModal()">✕</button>
+            <h3 style="font-family: var(--font-heading); font-size: 1.35rem; color: var(--text-pure); margin-bottom: 0.35rem;" id="modal-movie-title-heading">
+                Add New Movie
+            </h3>
+            <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 1.25rem;">
+                Configure movie metadata and upload custom local theatrical artwork.
+            </p>
+
+            <form id="form-movie-manage" onsubmit="event.preventDefault(); window.MTRSAdmin.saveMovie();">
+                <input type="hidden" id="modal-movie-id" value="">
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                    <div>
+                        <label for="modal-movie-name" style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Movie Title *</label>
+                        <input type="text" id="modal-movie-name" class="search-input" placeholder="e.g. Inception" required style="padding-left: 0.85rem;">
+                    </div>
+                    <div>
+                        <label for="modal-movie-genre" style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Genre *</label>
+                        <input type="text" id="modal-movie-genre" class="search-input" placeholder="e.g. Action / Sci-Fi" required style="padding-left: 0.85rem;">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                    <div>
+                        <label for="modal-movie-duration" style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Duration (Mins) *</label>
+                        <input type="number" id="modal-movie-duration" class="search-input" min="1" max="400" value="150" required style="padding-left: 0.85rem;">
+                    </div>
+                    <div>
+                        <label for="modal-movie-language" style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Language *</label>
+                        <input type="text" id="modal-movie-language" class="search-input" placeholder="e.g. English, Tamil" required style="padding-left: 0.85rem;">
+                    </div>
+                    <div>
+                        <label for="modal-movie-rating" style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Rating (★ / 10)</label>
+                        <input type="number" id="modal-movie-rating" class="search-input" min="0" max="10" step="0.1" value="8.5" style="padding-left: 0.85rem;">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                    <div>
+                        <label for="modal-movie-cast" style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Cast Members</label>
+                        <input type="text" id="modal-movie-cast" class="search-input" placeholder="e.g. Leonardo DiCaprio, Cillian Murphy" style="padding-left: 0.85rem;">
+                    </div>
+                    <div>
+                        <label for="modal-movie-status" style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Status</label>
+                        <select id="modal-movie-status" class="query-selector-select" style="margin-bottom: 0; padding: 0.65rem 0.85rem; font-size: 0.88rem;">
+                            <option value="Active">Active (Screening)</option>
+                            <option value="Archived">Archived (Inactive)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 1.25rem;">
+                    <label for="modal-movie-synopsis" style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Synopsis / Plot Summary</label>
+                    <textarea id="modal-movie-synopsis" class="search-input" rows="3" placeholder="Enter detailed theatrical synopsis..." style="width: 100%; padding: 0.75rem; resize: vertical;"></textarea>
+                </div>
+
+                <!-- POSTER UPLOAD & PREVIEW CONTROLS (Feature 2) -->
+                <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 1.25rem; margin-bottom: 1.5rem;">
+                    <h4 style="font-family: var(--font-heading); font-size: 0.95rem; color: var(--text-pure); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+                        🖼️ Theatrical Poster Management
+                    </h4>
+
+                    <div style="display: flex; gap: 1.5rem; align-items: flex-start; flex-wrap: wrap;">
+                        <!-- Live Preview Box -->
+                        <div style="flex-shrink: 0; width: 110px; height: 160px; background: #080910; border: 1.5px dashed var(--mtrs-seat-border, #414760); border-radius: 8px; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative;" id="modal-poster-preview-box">
+                            <span style="font-size: 0.72rem; color: var(--text-muted); text-align: center; padding: 0.5rem;" id="modal-poster-preview-placeholder">No Poster Selected</span>
+                            <img id="modal-poster-preview-img" src="" alt="Preview" style="display: none; width: 100%; height: 100%; object-fit: cover;">
+                        </div>
+
+                        <!-- Upload & URL Controls -->
+                        <div style="flex: 1; min-width: 250px;">
+                            <label style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem; font-weight: 700;">
+                                Upload From Computer (JPEG, PNG, WebP &le; 5MB):
+                            </label>
+                            <input type="file" id="modal-poster-file-input" accept="image/jpeg,image/png,image/webp" style="display: none;" onchange="window.MTRSAdmin.handlePosterFileSelected(this)">
+                            
+                            <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem; flex-wrap: wrap;">
+                                <button type="button" class="btn-secondary" style="padding: 0.45rem 0.9rem; font-size: 0.82rem;" onclick="document.getElementById('modal-poster-file-input').click()">
+                                    📁 Choose File...
+                                </button>
+                                <button type="button" class="btn-secondary" id="btn-remove-poster" style="padding: 0.45rem 0.9rem; font-size: 0.82rem; color: var(--primary);" onclick="window.MTRSAdmin.removeCustomPoster()">
+                                    ✕ Remove Custom Poster
+                                </button>
+                            </div>
+
+                            <div style="font-size: 0.74rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+                                Stored persistently in device browser storage (IndexedDB) without localStorage limits.
+                            </div>
+
+                            <label for="modal-movie-poster-url" style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.25rem;">
+                                Or Poster Image URL (Alternative):
+                            </label>
+                            <input type="url" id="modal-movie-poster-url" class="search-input" placeholder="https://image.tmdb.org/..." style="padding-left: 0.75rem; font-size: 0.82rem;" oninput="window.MTRSAdmin.handlePosterUrlInput(this.value)">
+
+                            <div id="modal-poster-error-msg" style="display: none; color: #ff5252; font-size: 0.76rem; margin-top: 0.4rem; font-weight: 600;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+                    <button type="button" class="btn-secondary" onclick="window.MTRSAdmin.closeMovieModal()">
+                        Cancel
+                    </button>
+                    <button type="submit" class="btn-primary" id="btn-save-movie">
+                        Save Movie &amp; Poster
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ====================================================================
+         ADD / EDIT THEATRE MODAL (Feature 4)
+         ==================================================================== -->
+    <div id="theatre-modal" class="modal-backdrop">
+        <div class="modal-box" style="max-width: 520px;">
+            <button class="modal-close-btn" onclick="document.getElementById('theatre-modal').classList.remove('active')">✕</button>
+            <h3 style="font-family: var(--font-heading); font-size: 1.35rem; color: var(--text-pure); margin-bottom: 0.35rem;" id="modal-theatre-heading">
+                Add New Cinema Theatre
+            </h3>
+            <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 1.25rem;">
+                Register a new cinema destination in Chennai multiplex network.
+            </p>
+
+            <form id="form-theatre-manage" onsubmit="event.preventDefault(); window.MTRSAdmin.saveTheatre();">
+                <input type="hidden" id="modal-theatre-id" value="">
+
+                <div style="margin-bottom: 1rem;">
+                    <label for="modal-theatre-name" style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Theatre / Multiplex Name *</label>
+                    <input type="text" id="modal-theatre-name" class="search-input" placeholder="e.g. AGS Cinemas — OMR" required style="padding-left: 0.85rem;">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                    <div>
+                        <label for="modal-theatre-city" style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">City *</label>
+                        <input type="text" id="modal-theatre-city" class="search-input" value="Chennai" required style="padding-left: 0.85rem;">
+                    </div>
+                    <div>
+                        <label for="modal-theatre-state" style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">State *</label>
+                        <input type="text" id="modal-theatre-state" class="search-input" value="Tamil Nadu" required style="padding-left: 0.85rem;">
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 1.5rem;">
+                    <label for="modal-theatre-country" style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Country</label>
+                    <input type="text" id="modal-theatre-country" class="search-input" value="India" style="padding-left: 0.85rem;">
+                </div>
+
+                <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+                    <button type="button" class="btn-secondary" onclick="document.getElementById('theatre-modal').classList.remove('active')">
+                        Cancel
+                    </button>
+                    <button type="submit" class="btn-primary">
+                        Save Theatre
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ====================================================================
+         ADD / EDIT AUDITORIUM SCREEN MODAL (Feature 4)
+         ==================================================================== -->
+    <div id="screen-modal" class="modal-backdrop">
+        <div class="modal-box" style="max-width: 540px;">
+            <button class="modal-close-btn" onclick="document.getElementById('screen-modal').classList.remove('active')">✕</button>
+            <h3 style="font-family: var(--font-heading); font-size: 1.35rem; color: var(--text-pure); margin-bottom: 0.35rem;" id="modal-screen-heading">
+                Configure Auditorium Screen
+            </h3>
+            <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 1.25rem;">
+                Set screen capacity, projection technology, and immersive sound format.
+            </p>
+
+            <form id="form-screen-manage" onsubmit="event.preventDefault(); window.MTRSAdmin.saveScreen();">
+                <input type="hidden" id="modal-screen-id" value="">
+                <input type="hidden" id="modal-screen-theatre-id" value="">
+
+                <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 1rem; margin-bottom: 1rem;">
+                    <div>
+                        <label for="modal-screen-number" style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Screen # *</label>
+                        <input type="number" id="modal-screen-number" class="search-input" min="1" max="50" value="1" required style="padding-left: 0.85rem;">
+                    </div>
+                    <div>
+                        <label for="modal-screen-name" style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Screen / Audi Name *</label>
+                        <input type="text" id="modal-screen-name" class="search-input" placeholder="e.g. Audi 1 (IMAX Laser)" required style="padding-left: 0.85rem;">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                    <div>
+                        <label for="modal-screen-type" style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Format / Hall Type</label>
+                        <select id="modal-screen-type" class="query-selector-select" style="margin-bottom: 0;">
+                            <option value="Standard">Standard Cinema</option>
+                            <option value="IMAX Laser">IMAX Laser</option>
+                            <option value="Dolby Atmos">Dolby Atmos</option>
+                            <option value="P[XL] Giant Screen">P[XL] Giant Screen</option>
+                            <option value="BIGPIX Giant Screen">BIGPIX Giant Screen</option>
+                            <option value="Luxe Standard">Luxe Standard</option>
+                            <option value="Luxe Atmos">Luxe Atmos</option>
+                            <option value="Heritage Premier">Heritage Premier</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="modal-screen-capacity" style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Auditorium Capacity *</label>
+                        <input type="number" id="modal-screen-capacity" class="search-input" min="20" max="1200" value="250" required style="padding-left: 0.85rem;">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                    <div>
+                        <label for="modal-screen-projection" style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Projection Tech</label>
+                        <input type="text" id="modal-screen-projection" class="search-input" value="4K RGB Laser" style="padding-left: 0.85rem;">
+                    </div>
+                    <div>
+                        <label for="modal-screen-audio" style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Audio Tech</label>
+                        <input type="text" id="modal-screen-audio" class="search-input" value="Dolby Atmos" style="padding-left: 0.85rem;">
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+                    <button type="button" class="btn-secondary" onclick="document.getElementById('screen-modal').classList.remove('active')">
+                        Cancel
+                    </button>
+                    <button type="submit" class="btn-primary">
+                        Save Auditorium
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Scripts (In Dependency Order) -->
+    <script src="js/image-store.js"></script>
     <script src="assets/posters.js"></script>
     <script src="js/db-data.js"></script>
     <script src="js/db-engine.js"></script>

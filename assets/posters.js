@@ -270,35 +270,48 @@
             const rec = this.findRecord(movieOrId);
             const movieId = typeof movieOrId === 'string' ? movieOrId : (movieOrId ? movieOrId.Movie_ID : '');
 
-            // 1. Local custom override stored in session/localStorage
+            // Priority 1: Uploaded poster associated with the movie (IndexedDB persistent store)
+            if (movieId && window.MTRSImageStore && typeof window.MTRSImageStore.getPosterUrl === 'function') {
+                const uploadedUrl = window.MTRSImageStore.getPosterUrl(movieId);
+                if (uploadedUrl) return uploadedUrl;
+            }
+
+            // Priority 2: Custom poster URL configured by administrator
+            if (typeof movieOrId === 'object') {
+                if (movieOrId.Custom_Poster_URL && movieOrId.Custom_Poster_URL.trim() !== '') {
+                    return movieOrId.Custom_Poster_URL.trim();
+                }
+                if (movieOrId.Poster_URL && movieOrId.Poster_URL.trim() !== '') {
+                    return movieOrId.Poster_URL.trim();
+                }
+            }
             if (movieId && this.customOverrides[movieId]) {
                 return this.customOverrides[movieId];
-            }
-
-            // 2. Custom poster configured in registry
-            if (rec && rec.customPoster && rec.customPoster.trim() !== '') {
-                return rec.customPoster;
-            }
-
-            // 3. Explicit Poster_URL on the movie record itself or database
-            if (typeof movieOrId === 'object' && movieOrId.Poster_URL && movieOrId.Poster_URL.trim() !== '') {
-                return movieOrId.Poster_URL.trim();
             }
             if (typeof movieOrId === 'string' && window.MTRSEngine) {
                 try {
                     const dbMovie = window.MTRSEngine.getTable('MOVIE').find(m => m.Movie_ID === movieId);
-                    if (dbMovie && dbMovie.Poster_URL && dbMovie.Poster_URL.trim() !== '') {
-                        return dbMovie.Poster_URL.trim();
+                    if (dbMovie) {
+                        if (dbMovie.Custom_Poster_URL && dbMovie.Custom_Poster_URL.trim() !== '') {
+                            return dbMovie.Custom_Poster_URL.trim();
+                        }
+                        if (dbMovie.Poster_URL && dbMovie.Poster_URL.trim() !== '') {
+                            return dbMovie.Poster_URL.trim();
+                        }
                     }
                 } catch (e) {}
             }
+            if (rec && rec.customPoster && rec.customPoster.trim() !== '') {
+                return rec.customPoster;
+            }
 
-            // 4. Verified CDN URL
+            // Priority 3: Existing verified poster registry entry (TMDb verified CDN)
             if (rec) {
                 if (size === 'w780' && rec.posterHiRes) return rec.posterHiRes;
                 if (rec.posterUrl) return rec.posterUrl;
             }
 
+            // Priority 4: Existing fallback artwork handled by caller renderPosterHtml
             return null;
         }
 

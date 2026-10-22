@@ -796,14 +796,14 @@ body {
     background: var(--bg-surface-elevated);
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-md);
-    padding: 0.7rem 1.2rem;
+    padding: 0.7rem 1.1rem;
     cursor: pointer;
     transition: var(--transition);
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 0.25rem;
-    min-width: 110px;
+    min-width: 145px;
 }
 
 .showtime-btn:hover {
@@ -824,9 +824,10 @@ body {
 
 .showtime-time {
     font-family: var(--font-heading);
-    font-size: 1rem;
+    font-size: 0.82rem;
     font-weight: 700;
     color: var(--text-pure);
+    white-space: nowrap;
 }
 
 .showtime-format {
@@ -1107,6 +1108,48 @@ body {
     to { transform: translateX(0); opacity: 1; }
 }
 
+/* Admin Movie & Theatre Management Enhancements */
+.admin-poster-thumb {
+    width: 48px;
+    height: 68px;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 1px solid var(--border-subtle);
+    background: #080910;
+    display: inline-block;
+}
+
+.theatre-card-admin {
+    background: var(--bg-surface-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    transition: var(--transition);
+}
+
+.theatre-card-admin:hover {
+    border-color: rgba(180, 154, 255, 0.35);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.screen-subcard {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 0.9rem 1.15rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-top: 0.65rem;
+}
+
+.screen-subcard:hover {
+    border-color: var(--accent-cyan);
+}
+
 /* Responsive adjustments */
 @media (max-width: 900px) {
     .hero-card {
@@ -1122,3 +1165,4 @@ body {
         display: none;
     }
 }
+

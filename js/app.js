@@ -22,6 +22,50 @@ class MTRSApp {
         this.init();
     }
 
+    // ------------------------------------------------------------------------
+    // SHOWTIME & DURATION END-TIME FORMATTING (Feature 5)
+    // ------------------------------------------------------------------------
+    formatShowtimeRange(showTimeStr, durationMinutes) {
+        if (!showTimeStr) return '';
+        const dur = parseInt(durationMinutes, 10);
+        if (isNaN(dur) || dur <= 0) {
+            return this.formatTime12Hour(showTimeStr);
+        }
+
+        const parts = showTimeStr.split(':');
+        const startH = parseInt(parts[0], 10) || 0;
+        const startM = parseInt(parts[1], 10) || 0;
+
+        const startTotal = startH * 60 + startM;
+        const endTotal = startTotal + dur;
+
+        const startFormatted = this.formatMinutesTo12Hour(startTotal);
+        const endFormatted = this.formatMinutesTo12Hour(endTotal);
+
+        const daysCrossed = Math.floor(endTotal / 1440);
+        const nextDayIndicator = daysCrossed > 0 ? ` (+${daysCrossed}d)` : '';
+
+        return `${startFormatted} – ${endFormatted}${nextDayIndicator}`;
+    }
+
+    formatMinutesTo12Hour(totalMinutes) {
+        const normalized = ((totalMinutes % 1440) + 1440) % 1440;
+        const h24 = Math.floor(normalized / 60);
+        const m = normalized % 60;
+        const period = h24 >= 12 ? 'PM' : 'AM';
+        const h12 = h24 % 12 === 0 ? 12 : (h24 % 12);
+        const mStr = m < 10 ? `0${m}` : `${m}`;
+        return `${h12}:${mStr} ${period}`;
+    }
+
+    formatTime12Hour(timeStr) {
+        if (!timeStr) return '';
+        const parts = timeStr.split(':');
+        const h = parseInt(parts[0], 10) || 0;
+        const m = parseInt(parts[1], 10) || 0;
+        return this.formatMinutesTo12Hour(h * 60 + m);
+    }
+
     init() {
         // Default customer: CU01 Rahul Sharma
         const customers = this.engine.getTable('CUSTOMER');
@@ -148,8 +192,10 @@ class MTRSApp {
         if (!heroMovie) return;
 
         const posterBox = document.getElementById('hero-poster-box');
-        if (posterBox && window.MOVIE_POSTERS && window.MOVIE_POSTERS[heroMovie.Movie_ID]) {
-            posterBox.innerHTML = window.MOVIE_POSTERS[heroMovie.Movie_ID].svg;
+        if (posterBox) {
+            posterBox.innerHTML = window.MTRSPosters ? 
+                window.MTRSPosters.renderPosterHtml(heroMovie, 'hero-poster-img', heroMovie.Movie_Name) :
+                (window.MOVIE_POSTERS && window.MOVIE_POSTERS[heroMovie.Movie_ID] ? window.MOVIE_POSTERS[heroMovie.Movie_ID].svg : '');
         }
 
         const btnBookHero = document.getElementById('btn-hero-book');
@@ -203,8 +249,9 @@ class MTRSApp {
         }
 
         grid.innerHTML = filtered.map(movie => {
-            const posterSvg = window.MOVIE_POSTERS && window.MOVIE_POSTERS[movie.Movie_ID] ? 
-                window.MOVIE_POSTERS[movie.Movie_ID].svg : '';
+            const posterHtml = window.MTRSPosters ? 
+                window.MTRSPosters.renderPosterHtml(movie, 'movie-poster-img', movie.Movie_Name) :
+                (window.MOVIE_POSTERS && window.MOVIE_POSTERS[movie.Movie_ID] ? window.MOVIE_POSTERS[movie.Movie_ID].svg : '');
 
             // Find available formats for this movie from shows
             const movieShows = shows.filter(s => s.Movie_ID === movie.Movie_ID);
@@ -216,7 +263,7 @@ class MTRSApp {
             return `
                 <div class="movie-card" onclick="window.App.selectMovieForBooking('${movie.Movie_ID}')">
                     <div class="movie-poster-box">
-                        ${posterSvg}
+                        ${posterHtml}
                         <div class="card-overlay-badge">
                             ★ ${movie.Rating}
                         </div>
@@ -353,7 +400,7 @@ class MTRSApp {
                                 
                                 return `
                                     <button class="showtime-btn ${isPLF ? 'plf-highlight' : ''}" onclick="window.App.selectShowForSeats('${show.Show_ID}')">
-                                        <div class="showtime-time">${show.Show_Time.substring(0, 5)}</div>
+                                        <div class="showtime-time">${this.formatShowtimeRange(show.Show_Time, movie.Duration)}</div>
                                         <div class="showtime-format" style="color: ${isPLF ? 'var(--accent-gold)' : 'var(--accent-cyan)'};">${show.Format}</div>
                                         <div class="showtime-price">₹${show.Ticket_Price}</div>
                                         <div style="font-size: 0.68rem; color: var(--text-pure); font-weight: 600; margin-top: 3px; max-width: 130px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
@@ -505,9 +552,9 @@ class MTRSApp {
                     </div>
                 </div>
                 <div style="text-align: right;">
-                    <div style="font-size: 0.8rem; color: var(--mtrs-text-secondary, #898DA5); font-weight: 700; text-transform: uppercase;">Showtime</div>
-                    <div style="font-family: var(--font-heading); font-size: 1.25rem; font-weight: 800; color: var(--mtrs-seat-selected, #B49AFF);">
-                        ${show.Show_Date} • ${show.Show_Time.substring(0, 5)}
+                    <div style="font-size: 0.8rem; color: var(--mtrs-text-secondary, #898DA5); font-weight: 700; text-transform: uppercase;">Showtime &amp; Duration</div>
+                    <div style="font-family: var(--font-heading); font-size: 1.15rem; font-weight: 800; color: var(--mtrs-seat-selected, #B49AFF);">
+                        ${show.Show_Date} • ${this.formatShowtimeRange(show.Show_Time, movie.Duration)}
                     </div>
                 </div>
             </div>
@@ -533,24 +580,25 @@ class MTRSApp {
                         ${tier.rows.map(r => {
                             const numSeats = r.seats.length;
                             const centerIdx = (numSeats - 1) / 2;
-                            // Elliptical curvature parameters: center is closer to screen, sides curve backward
-                            const maxDepth = Math.round(Math.min(30, Math.max(16, (numSeats / 20) * 25)));
-                            const maxAngle = Math.min(10, Math.max(6, (numSeats / 20) * 8.5));
+                            const maxCenter = Math.max(centerIdx, 1);
+                            // Downward U-shaped curvature: middle seats positioned lower on screen than ends
+                            const maxDepth = Math.round(Math.min(32, Math.max(18, (numSeats / 20) * 26)));
+                            const maxAngle = Math.min(8, Math.max(5, (numSeats / 20) * 7.5));
 
                             return `
                                 <div class="seat-row" style="padding-bottom: ${maxDepth + 6}px;">
-                                    <div class="row-label" style="transform: translateY(${maxDepth}px);">${r.rowKey}</div>
+                                    <div class="row-label" style="transform: translateY(0px);">${r.rowKey}</div>
                                     <div class="seat-cluster">
                                         ${r.seats.map((seat, idx) => {
                                             const isBooked = seat.Status === 'BOOKED';
                                             const isSelected = this.selectedSeats.some(s => s.Seat_ID === seat.Seat_ID);
                                             const seatClass = isBooked ? 'seat booked' : (isSelected ? 'seat selected' : 'seat');
 
-                                            // Normalized offset from row center: t in [-1.0, 1.0]
-                                            const t = centerIdx > 0 ? (idx - centerIdx) / centerIdx : 0;
-                                            // Symmetrical elliptical displacement: center y = 0, sides y = maxDepth
-                                            const curveY = (maxDepth * t * t).toFixed(1);
-                                            // Tangential tilt facing screen center
+                                            // Exact geometric downward curve requirement:
+                                            // t = (i - center) / max(center, 1)
+                                            // y = maxDepth * (1 - t * t)
+                                            const t = (idx - centerIdx) / maxCenter;
+                                            const curveY = (maxDepth * (1 - t * t)).toFixed(1);
                                             const rotDeg = (-t * maxAngle).toFixed(2);
 
                                             return `
@@ -569,7 +617,7 @@ class MTRSApp {
                                             `;
                                         }).join('')}
                                     </div>
-                                    <div class="row-label" style="transform: translateY(${maxDepth}px);">${r.rowKey}</div>
+                                    <div class="row-label" style="transform: translateY(0px);">${r.rowKey}</div>
                                 </div>
                             `;
                         }).join('')}
@@ -744,7 +792,7 @@ class MTRSApp {
         // Render checkout details
         document.getElementById('checkout-movie-title').textContent = this.selectedMovie.Movie_Name;
         document.getElementById('checkout-theater-info').textContent = `${theater ? theater.Theater_Name : ''} • ${screen ? screen.Screen_Name : 'Audi'} (${this.selectedShow.Format})`;
-        document.getElementById('checkout-show-time').textContent = `${this.selectedShow.Show_Date} at ${this.selectedShow.Show_Time.substring(0, 5)}`;
+        document.getElementById('checkout-show-time').textContent = `${this.selectedShow.Show_Date} • ${this.formatShowtimeRange(this.selectedShow.Show_Time, this.selectedMovie.Duration)}`;
         document.getElementById('checkout-seats-list').textContent = this.selectedSeats.map(s => s.Seat_Number).join(', ');
         
         document.getElementById('checkout-subtotal').textContent = `₹${subtotal.toFixed(2)}`;
@@ -868,7 +916,7 @@ class MTRSApp {
                             </div>
                             <div>
                                 <div class="ticket-item-label">Date & Time</div>
-                                <div class="ticket-item-value">${show.Show_Date} | ${show.Show_Time.substring(0, 5)}</div>
+                                <div class="ticket-item-value">${show.Show_Date} | ${this.formatShowtimeRange(show.Show_Time, movie.Duration)}</div>
                             </div>
                             <div>
                                 <div class="ticket-item-label">Reserved Seats</div>
@@ -1016,7 +1064,7 @@ class MTRSApp {
 
                             <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid rgba(255, 255, 255, 0.06); flex-wrap: wrap;">
                                 <div style="font-size: 0.88rem; color: var(--text-secondary);">
-                                    📅 <strong>${show.Show_Date}</strong> at <strong>${show.Show_Time ? show.Show_Time.substring(0, 5) : ''}</strong> | 
+                                    📅 <strong>${show.Show_Date}</strong> • <strong>${show.Show_Time ? this.formatShowtimeRange(show.Show_Time, movie.Duration) : ''}</strong> | 
                                     Seats: <strong style="color: var(--accent-gold);">${seatNumbers}</strong>
                                 </div>
 
@@ -1156,3 +1204,8 @@ class MTRSApp {
 
 // Instantiate globally
 window.App = new MTRSApp();
+window.MTRSUtil = {
+    formatShowtimeRange: (time, dur) => window.App.formatShowtimeRange(time, dur),
+    formatMinutesTo12Hour: (min) => window.App.formatMinutesTo12Hour(min),
+    formatTime12Hour: (time) => window.App.formatTime12Hour(time)
+};
