@@ -185,6 +185,10 @@
                 }
             });
         }
+
+        async deletePoster(movieId) {
+            return this.removePoster(movieId);
+        }
     }
 
     window.MTRSImageStore = new MTRSImageStore();

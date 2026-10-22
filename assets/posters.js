@@ -277,12 +277,10 @@
             }
 
             // Priority 2: Custom poster URL configured by administrator
-            if (typeof movieOrId === 'object') {
-                if (movieOrId.Custom_Poster_URL && movieOrId.Custom_Poster_URL.trim() !== '') {
-                    return movieOrId.Custom_Poster_URL.trim();
-                }
-                if (movieOrId.Poster_URL && movieOrId.Poster_URL.trim() !== '') {
-                    return movieOrId.Poster_URL.trim();
+            if (typeof movieOrId === 'object' && movieOrId) {
+                const cand = movieOrId.Poster_Url || movieOrId.Poster_URL || movieOrId.Custom_Poster_URL || movieOrId.Custom_Poster_Url || movieOrId.posterUrl;
+                if (cand && typeof cand === 'string' && cand.trim() !== '') {
+                    return cand.trim();
                 }
             }
             if (movieId && this.customOverrides[movieId]) {
@@ -292,11 +290,9 @@
                 try {
                     const dbMovie = window.MTRSEngine.getTable('MOVIE').find(m => m.Movie_ID === movieId);
                     if (dbMovie) {
-                        if (dbMovie.Custom_Poster_URL && dbMovie.Custom_Poster_URL.trim() !== '') {
-                            return dbMovie.Custom_Poster_URL.trim();
-                        }
-                        if (dbMovie.Poster_URL && dbMovie.Poster_URL.trim() !== '') {
-                            return dbMovie.Poster_URL.trim();
+                        const cand = dbMovie.Poster_Url || dbMovie.Poster_URL || dbMovie.Custom_Poster_URL || dbMovie.Custom_Poster_Url || dbMovie.posterUrl;
+                        if (cand && typeof cand === 'string' && cand.trim() !== '') {
+                            return cand.trim();
                         }
                     }
                 } catch (e) {}
