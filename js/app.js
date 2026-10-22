@@ -113,11 +113,24 @@ class MTRSApp {
             });
         });
 
-        // User Switcher Click
+        // User Account / Profile Click
         const userPill = document.getElementById('user-profile-pill');
         if (userPill) {
-            userPill.addEventListener('click', () => this.openUserSwitcherModal());
+            userPill.addEventListener('click', () => this.openAccountModal());
         }
+
+        // Global Escape Key to dismiss modals
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                this.closeTicketModal();
+                const accModal = document.getElementById('account-modal');
+                if (accModal) accModal.classList.remove('active');
+                const chkModal = document.getElementById('checkout-modal');
+                if (chkModal) chkModal.classList.remove('active');
+                const autoModal = document.getElementById('auto-schedule-modal');
+                if (autoModal) autoModal.classList.remove('active');
+            }
+        });
 
         // Reset Database Button
         const resetBtn = document.getElementById('btn-reset-db');
@@ -800,15 +813,15 @@ class MTRSApp {
         document.getElementById('checkout-gst').textContent = `₹${gst.toFixed(2)}`;
         document.getElementById('checkout-grand-total').textContent = `₹${grandTotal}`;
 
-        // Populate customer selector
-        const customerSelect = document.getElementById('checkout-customer-select');
-        if (customerSelect) {
-            const allCust = this.engine.getTable('CUSTOMER');
-            customerSelect.innerHTML = allCust.map(c => `
-                <option value="${c.Customer_ID}" ${c.Customer_ID === this.currentCustomer.Customer_ID ? 'selected' : ''}>
-                    ${c.Customer_Name} (${c.Email})
-                </option>
-            `).join('');
+        // Bind checkout customer display to active authenticated customer (Requirement 12)
+        const customerDisplay = document.getElementById('checkout-customer-display');
+        if (customerDisplay) {
+            customerDisplay.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>${this.currentCustomer.Customer_Name}</span>
+                    <span style="font-size: 0.75rem; color: var(--accent-cyan); font-family: var(--font-mono);">${this.currentCustomer.Customer_ID}</span>
+                </div>
+            `;
         }
 
         modal.classList.add('active');
@@ -820,10 +833,8 @@ class MTRSApp {
     }
 
     confirmBookingAndPay() {
-        const customerSelect = document.getElementById('checkout-customer-select');
         const paymentModeSelect = document.getElementById('checkout-payment-mode');
-
-        const customerId = customerSelect ? customerSelect.value : this.currentCustomer.Customer_ID;
+        const customerId = this.currentCustomer.Customer_ID;
         const paymentMode = paymentModeSelect ? paymentModeSelect.value : 'UPI';
 
         const subtotal = this.selectedSeats.reduce((sum, s) => sum + s.Price, 0);
@@ -873,7 +884,7 @@ class MTRSApp {
     }
 
     // ------------------------------------------------------------------------
-    // BOARDING PASS / E-TICKET CONFIRMATION MODAL
+    // E-TICKET CONFIRMATION MODAL (Requirements 13 & 14)
     // ------------------------------------------------------------------------
     openTicketModal(txResult) {
         const modal = document.getElementById('ticket-modal');
@@ -896,7 +907,7 @@ class MTRSApp {
                     <div class="ticket-header">
                         <div>
                             <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.9;">MTRS Chennai E-Ticket</div>
-                            <div style="font-family: var(--font-heading); font-size: 1.3rem; font-weight: 800;">BOARDING PASS</div>
+                            <div style="font-family: var(--font-heading); font-size: 1.3rem; font-weight: 800; letter-spacing: 1px;">E-TICKET</div>
                         </div>
                         <div class="ticket-badge-confirmed">CONFIRMED</div>
                     </div>
@@ -968,13 +979,18 @@ class MTRSApp {
                     </div>
                 </div>
 
-                <div style="display: flex; gap: 1rem; margin-top: 1.5rem; justify-content: flex-end;">
-                    <button class="btn-secondary" onclick="window.print()">
-                        🖨️ Print Ticket
+                <div class="ticket-action-bar" style="display: flex; gap: 0.75rem; margin-top: 1.5rem; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+                    <button class="btn-secondary" id="btn-ticket-back" onclick="window.App.closeTicketModal(); window.App.switchView('my-bookings');">
+                        ← Back to Bookings
                     </button>
-                    <button class="btn-primary" onclick="window.App.closeTicketModal(); window.App.switchView('my-bookings');">
-                        View in My Bookings
-                    </button>
+                    <div style="display: flex; gap: 0.75rem;">
+                        <button class="btn-secondary" id="btn-ticket-close" onclick="window.App.closeTicketModal();">
+                            ✕ Close
+                        </button>
+                        <button class="btn-primary" id="btn-ticket-print" onclick="window.App.printTicket();">
+                            🖨️ Print E-Ticket
+                        </button>
+                    </div>
                 </div>
             `;
         }
@@ -982,9 +998,34 @@ class MTRSApp {
         modal.classList.add('active');
     }
 
+    printTicket() {
+        document.body.classList.add('mtrs-printing-mode');
+
+        let cleanedUp = false;
+        const cleanupPrint = () => {
+            if (cleanedUp) return;
+            cleanedUp = true;
+            document.body.classList.remove('mtrs-printing-mode');
+            const closeBtn = document.getElementById('btn-ticket-close') || document.getElementById('ticket-modal-close-btn');
+            if (closeBtn) closeBtn.focus();
+        };
+
+        window.addEventListener('afterprint', cleanupPrint, { once: true });
+
+        try {
+            window.print();
+        } catch (e) {
+            console.error("Print trigger failed:", e);
+        }
+
+        // Safety fallback timer if afterprint does not fire or cancels prematurely
+        setTimeout(cleanupPrint, 1200);
+    }
+
     closeTicketModal() {
         const modal = document.getElementById('ticket-modal');
         if (modal) modal.classList.remove('active');
+        document.body.classList.remove('mtrs-printing-mode');
     }
 
     // ------------------------------------------------------------------------
@@ -1070,7 +1111,7 @@ class MTRSApp {
 
                                 <div style="display: flex; gap: 0.75rem;">
                                     <button class="btn-secondary" style="padding: 0.4rem 0.9rem; font-size: 0.82rem;" onclick="window.App.reprintTicket('${booking.Booking_ID}')">
-                                        View Ticket
+                                        View E-Ticket
                                     </button>
                                     <button class="btn-book-card" style="background: rgba(229, 9, 20, 0.2); border: 1px solid var(--primary); color: #fff; padding: 0.4rem 0.9rem; font-size: 0.82rem;" onclick="window.App.cancelBooking('${booking.Booking_ID}')">
                                         Cancel Booking
@@ -1129,32 +1170,111 @@ class MTRSApp {
     }
 
     // ------------------------------------------------------------------------
-    // USER SWITCHER MODAL (Demo Customer Profiles)
+    // CUSTOMER ACCOUNT MANAGEMENT (Requirement 12)
+    // Replaces demo persona switchers with legitimate authentication & sign-up
     // ------------------------------------------------------------------------
-    openUserSwitcherModal() {
-        const modal = document.getElementById('user-modal');
+    openAccountModal() {
+        const modal = document.getElementById('account-modal');
         if (!modal) return;
 
-        const customers = this.engine.getTable('CUSTOMER');
-        const listContainer = document.getElementById('user-list-container');
-        if (listContainer) {
-            listContainer.innerHTML = customers.map(c => `
-                <div class="date-pill ${c.Customer_ID === this.currentCustomer.Customer_ID ? 'active' : ''}" 
-                     style="display: flex; align-items: center; justify-content: space-between; padding: 0.85rem 1.25rem; margin-bottom: 0.65rem; text-align: left; cursor: pointer;"
-                     onclick="window.App.switchActiveUser('${c.Customer_ID}')">
-                    <div style="display: flex; align-items: center; gap: 0.85rem;">
-                        <div class="user-avatar" style="width: 34px; height: 34px;">${c.Customer_Name[0]}</div>
-                        <div>
-                            <div style="font-family: var(--font-heading); font-weight: 700; color: var(--text-pure);">${c.Customer_Name}</div>
-                            <div style="font-size: 0.78rem; color: var(--text-secondary);">${c.Email} • Phone: ${c.Phone}</div>
-                        </div>
-                    </div>
-                    <span style="font-size: 0.75rem; font-weight: 700; color: var(--accent-cyan);">${c.Customer_ID}</span>
-                </div>
-            `).join('');
+        const nameEl = document.getElementById('account-name');
+        const detailsEl = document.getElementById('account-details');
+        const avatarEl = document.getElementById('account-avatar');
+
+        if (nameEl) nameEl.textContent = this.currentCustomer.Customer_Name;
+        if (detailsEl) detailsEl.textContent = `${this.currentCustomer.Email} • Phone: ${this.currentCustomer.Phone}`;
+        if (avatarEl) {
+            const initials = this.currentCustomer.Customer_Name.split(' ').map(p => p[0]).join('').substring(0, 2).toUpperCase();
+            avatarEl.textContent = initials || 'CU';
         }
 
+        this.switchAccountTab('signin');
         modal.classList.add('active');
+    }
+
+    switchAccountTab(tab) {
+        const tabSignIn = document.getElementById('tab-account-signin');
+        const tabRegister = document.getElementById('tab-account-register');
+        const btnSignIn = document.getElementById('btn-tab-signin');
+        const btnRegister = document.getElementById('btn-tab-register');
+
+        if (tab === 'signin') {
+            if (tabSignIn) tabSignIn.style.display = 'block';
+            if (tabRegister) tabRegister.style.display = 'none';
+            if (btnSignIn) btnSignIn.classList.add('active');
+            if (btnRegister) btnRegister.classList.remove('active');
+        } else {
+            if (tabSignIn) tabSignIn.style.display = 'none';
+            if (tabRegister) tabRegister.style.display = 'block';
+            if (btnSignIn) btnSignIn.classList.remove('active');
+            if (btnRegister) btnRegister.classList.add('active');
+        }
+    }
+
+    handleCustomerSignIn() {
+        const input = document.getElementById('signin-email');
+        if (!input || !input.value.trim()) return;
+
+        const query = input.value.trim().toLowerCase();
+        const customers = this.engine.getTable('CUSTOMER');
+        const match = customers.find(c => 
+            c.Email.toLowerCase() === query || 
+            c.Customer_ID.toLowerCase() === query ||
+            c.Phone === query
+        );
+
+        if (!match) {
+            this.showToast("No customer account found with that email or ID. Please register as a new customer.", "error");
+            return;
+        }
+
+        this.currentCustomer = match;
+        this.renderNavbarUser();
+        const modal = document.getElementById('account-modal');
+        if (modal) modal.classList.remove('active');
+        input.value = '';
+        this.showToast(`Signed in successfully as ${match.Customer_Name}`, "success");
+
+        if (document.getElementById('view-my-bookings').style.display === 'block') {
+            this.renderMyBookings();
+        }
+    }
+
+    handleCustomerRegister() {
+        const nameInput = document.getElementById('register-name');
+        const emailInput = document.getElementById('register-email');
+        const phoneInput = document.getElementById('register-phone');
+
+        const name = nameInput ? nameInput.value.trim() : '';
+        const email = emailInput ? emailInput.value.trim() : '';
+        const phone = phoneInput ? phoneInput.value.trim() : '';
+
+        if (!name || !email || !phone) {
+            this.showToast("Please fill in all customer registration fields.", "error");
+            return;
+        }
+
+        try {
+            const newCust = this.engine.registerCustomer({ name, email, phone });
+            this.currentCustomer = newCust;
+            this.renderNavbarUser();
+            const modal = document.getElementById('account-modal');
+            if (modal) modal.classList.remove('active');
+            if (nameInput) nameInput.value = '';
+            if (emailInput) emailInput.value = '';
+            if (phoneInput) phoneInput.value = '';
+            this.showToast(`Account created! Welcome, ${newCust.Customer_Name} (${newCust.Customer_ID})`, "success");
+
+            if (document.getElementById('view-my-bookings').style.display === 'block') {
+                this.renderMyBookings();
+            }
+        } catch (err) {
+            this.showToast(err.message, "error");
+        }
+    }
+
+    openUserSwitcherModal() {
+        this.openAccountModal();
     }
 
     switchActiveUser(customerId) {
@@ -1164,12 +1284,11 @@ class MTRSApp {
         this.currentCustomer = customer;
         this.renderNavbarUser();
 
-        const modal = document.getElementById('user-modal');
+        const modal = document.getElementById('account-modal') || document.getElementById('user-modal');
         if (modal) modal.classList.remove('active');
 
-        this.showToast(`Switched active profile to ${customer.Customer_Name} (${customer.Customer_ID})`, "info");
+        this.showToast(`Active profile: ${customer.Customer_Name} (${customer.Customer_ID})`, "info");
 
-        // If currently in My Bookings, refresh it
         if (document.getElementById('view-my-bookings').style.display === 'block') {
             this.renderMyBookings();
         }

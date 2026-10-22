@@ -46,7 +46,7 @@
                 🔄 Reset DB
             </button>
 
-            <div class="nav-user-pill" id="user-profile-pill" title="Click to switch student/customer persona">
+            <div class="nav-user-pill" id="user-profile-pill" title="Manage Customer Account / Sign In">
                 <div class="user-avatar" id="navbar-user-avatar">RS</div>
                 <div class="user-info" id="navbar-user-name">Rahul Sharma</div>
                 <span style="font-size: 0.7rem; color: var(--text-muted);">▼</span>
@@ -63,7 +63,7 @@
             <div class="hero-card">
                 <div>
                     <span class="hero-badge">⚡ Now Screening Across 6 Chennai Destinations</span>
-                    <h1 class="hero-title">SUPERMAN: LEGACY</h1>
+                    <h1 class="hero-title">SUPERMAN</h1>
                     <div class="hero-meta">
                         <span class="meta-rating">★ 8.6/10</span>
                         <span class="meta-pill">Action / Sci-Fi</span>
@@ -343,10 +343,12 @@
             <!-- Form Inputs -->
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.75rem;">
                 <div>
-                    <label for="checkout-customer-select" style="display: block; font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; margin-bottom: 0.35rem;">
+                    <label style="display: block; font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; margin-bottom: 0.35rem;">
                         Customer Account:
                     </label>
-                    <select id="checkout-customer-select" class="query-selector-select" style="margin-bottom: 0; padding: 0.6rem 0.85rem; font-size: 0.88rem;"></select>
+                    <div id="checkout-customer-display" style="padding: 0.6rem 0.85rem; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: var(--radius-sm); font-size: 0.88rem; color: var(--text-pure); font-weight: 600;">
+                        <!-- Bound to active customer in app.js -->
+                    </div>
                 </div>
                 <div>
                     <label for="checkout-payment-mode" style="display: block; font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; margin-bottom: 0.35rem;">
@@ -369,11 +371,11 @@
     </div>
 
     <!-- ====================================================================
-         E-TICKET / BOARDING PASS MODAL
+         E-TICKET CONFIRMATION MODAL (Requirement 13 & 14)
          ==================================================================== -->
-    <div id="ticket-modal" class="modal-backdrop">
+    <div id="ticket-modal" class="modal-backdrop" onclick="if(event.target === this) window.App.closeTicketModal()">
         <div class="modal-box" style="max-width: 580px; padding: 1.5rem;">
-            <button class="modal-close-btn" onclick="window.App.closeTicketModal()">✕</button>
+            <button class="modal-close-btn" id="ticket-modal-close-btn" onclick="window.App.closeTicketModal()" title="Close E-Ticket">✕</button>
             <div id="ticket-modal-content">
                 <!-- Rendered dynamically by window.App.openTicketModal() -->
             </div>
@@ -381,18 +383,63 @@
     </div>
 
     <!-- ====================================================================
-         USER SWITCHER MODAL (Demo Customer Profiles)
+         CUSTOMER ACCOUNT & SIGN-IN / REGISTER MODAL (Requirement 12)
          ==================================================================== -->
-    <div id="user-modal" class="modal-backdrop">
+    <div id="account-modal" class="modal-backdrop" onclick="if(event.target === this) this.classList.remove('active')">
         <div class="modal-box" style="max-width: 480px;">
-            <button class="modal-close-btn" onclick="document.getElementById('user-modal').classList.remove('active')">✕</button>
-            <h3 style="font-family: var(--font-heading); font-size: 1.3rem; color: var(--text-pure); margin-bottom: 0.5rem;">
-                Select Active Customer
+            <button class="modal-close-btn" onclick="document.getElementById('account-modal').classList.remove('active')" title="Close Account Modal">✕</button>
+            <h3 style="font-family: var(--font-heading); font-size: 1.3rem; color: var(--text-pure); margin-bottom: 0.35rem;">
+                Customer Account
             </h3>
             <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.25rem;">
-                Switch between customers CU01-CU05 to test bookings and isolation.
+                Manage your authenticated customer profile or register a new customer.
             </p>
-            <div id="user-list-container"></div>
+
+            <div id="account-profile-card" style="background: var(--bg-surface-elevated); border: var(--glass-border); border-radius: var(--radius-md); padding: 1rem; margin-bottom: 1.25rem;">
+                <div style="display: flex; align-items: center; gap: 0.85rem;">
+                    <div class="user-avatar" id="account-avatar" style="width: 42px; height: 42px; font-size: 1.1rem;">RS</div>
+                    <div>
+                        <div id="account-name" style="font-family: var(--font-heading); font-weight: 700; color: var(--text-pure); font-size: 1.1rem;">Rahul Sharma</div>
+                        <div id="account-details" style="font-size: 0.82rem; color: var(--text-secondary);">rahul.s@example.com • 9876543210</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Buttons for Switch Account / Register New -->
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.5rem;">
+                <button type="button" class="filter-chip active" id="btn-tab-signin" onclick="window.App.switchAccountTab('signin')">Sign In</button>
+                <button type="button" class="filter-chip" id="btn-tab-register" onclick="window.App.switchAccountTab('register')">Register New Customer</button>
+            </div>
+
+            <!-- Sign In Form -->
+            <div id="tab-account-signin">
+                <form onsubmit="event.preventDefault(); window.App.handleCustomerSignIn();">
+                    <div style="margin-bottom: 1rem;">
+                        <label for="signin-email" style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem;">Customer Email or ID:</label>
+                        <input type="text" id="signin-email" class="search-input" placeholder="e.g. rahul.s@example.com or CU01" required style="padding-left: 0.85rem;">
+                    </div>
+                    <button type="submit" class="btn-primary" style="width: 100%; justify-content: center;">Sign In</button>
+                </form>
+            </div>
+
+            <!-- Register Form -->
+            <div id="tab-account-register" style="display: none;">
+                <form onsubmit="event.preventDefault(); window.App.handleCustomerRegister();">
+                    <div style="margin-bottom: 0.75rem;">
+                        <label for="register-name" style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Full Name *</label>
+                        <input type="text" id="register-name" class="search-input" placeholder="e.g. Aditi Verma" required style="padding-left: 0.85rem;">
+                    </div>
+                    <div style="margin-bottom: 0.75rem;">
+                        <label for="register-email" style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Email Address *</label>
+                        <input type="email" id="register-email" class="search-input" placeholder="e.g. aditi.v@example.com" required style="padding-left: 0.85rem;">
+                    </div>
+                    <div style="margin-bottom: 1.25rem;">
+                        <label for="register-phone" style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Phone Number *</label>
+                        <input type="tel" id="register-phone" class="search-input" placeholder="e.g. 9840123456" required style="padding-left: 0.85rem;">
+                    </div>
+                    <button type="submit" class="btn-primary" style="width: 100%; justify-content: center;">Create Account</button>
+                </form>
+            </div>
         </div>
     </div>
 
@@ -685,6 +732,92 @@
                     </button>
                     <button type="submit" class="btn-primary">
                         Save Auditorium
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ====================================================================
+         AUTOMATIC SHOWTIME SCHEDULER MODAL (Requirement 15)
+         ==================================================================== -->
+    <div id="auto-schedule-modal" class="modal-backdrop" onclick="if(event.target === this) this.classList.remove('active')">
+        <div class="modal-box" style="max-width: 620px;">
+            <button class="modal-close-btn" onclick="document.getElementById('auto-schedule-modal').classList.remove('active')" title="Close Auto-Scheduler">✕</button>
+            <h3 style="font-family: var(--font-heading); font-size: 1.35rem; color: var(--text-pure); margin-bottom: 0.35rem;">
+                ⚡ Automatic Showtime Scheduler
+            </h3>
+            <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 1.25rem;">
+                Generates a complete daily schedule from <strong>9:00 AM</strong> until <strong>2:00 AM</strong> closing deadline with mandatory <strong>15-minute cleaning intervals</strong>.
+            </p>
+
+            <form id="form-auto-schedule" onsubmit="event.preventDefault(); window.MTRSAdmin.commitAutoSchedule();">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                    <div>
+                        <label for="auto-sched-theatre" style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Theatre Destination *</label>
+                        <select id="auto-sched-theatre" class="query-selector-select" style="margin-bottom: 0;" onchange="window.MTRSAdmin.onAutoScheduleTheatreChange()"></select>
+                    </div>
+                    <div>
+                        <label for="auto-sched-screen" style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Auditorium Screen *</label>
+                        <select id="auto-sched-screen" class="query-selector-select" style="margin-bottom: 0;" onchange="window.MTRSAdmin.previewAutoSchedule()"></select>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                    <div>
+                        <label for="auto-sched-movie" style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Movie to Screen *</label>
+                        <select id="auto-sched-movie" class="query-selector-select" style="margin-bottom: 0;" onchange="window.MTRSAdmin.previewAutoSchedule()"></select>
+                    </div>
+                    <div>
+                        <label for="auto-sched-date" style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Schedule Date *</label>
+                        <input type="date" id="auto-sched-date" class="search-input" value="2026-10-22" required style="padding-left: 0.85rem;" onchange="window.MTRSAdmin.previewAutoSchedule()">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                    <div>
+                        <label for="auto-sched-format" style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Presentation Format *</label>
+                        <select id="auto-sched-format" class="query-selector-select" style="margin-bottom: 0;">
+                            <option value="2D">2D Standard</option>
+                            <option value="3D">3D Standard</option>
+                            <option value="IMAX 2D">IMAX 2D Laser</option>
+                            <option value="IMAX 3D">IMAX 3D Laser</option>
+                            <option value="P[XL] 2D">P[XL] 2D Giant</option>
+                            <option value="P[XL] 3D">P[XL] 3D Giant</option>
+                            <option value="BIGPIX 2D">BIGPIX 2D</option>
+                            <option value="BIGPIX 3D">BIGPIX 3D</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="auto-sched-price" style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Ticket Price (₹) *</label>
+                        <input type="number" id="auto-sched-price" class="search-input" value="350" min="100" max="2500" step="10" required style="padding-left: 0.85rem;">
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.6rem;">
+                    <input type="checkbox" id="auto-sched-replace" style="accent-color: var(--accent-cyan); width: 16px; height: 16px;">
+                    <label for="auto-sched-replace" style="font-size: 0.82rem; color: var(--text-secondary); cursor: pointer;">
+                        Replace / clear existing shows on this screen for this date
+                    </label>
+                </div>
+
+                <!-- Schedule Preview Box -->
+                <div style="background: var(--bg-surface-elevated); border: var(--glass-border); border-radius: var(--radius-md); padding: 1rem; margin-bottom: 1.25rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <span style="font-size: 0.78rem; font-weight: 700; color: var(--accent-cyan); text-transform: uppercase;">Generated Schedule Preview</span>
+                        <span id="auto-sched-preview-count" style="font-size: 0.75rem; color: var(--text-muted);">0 shows calculated</span>
+                    </div>
+                    <div id="auto-sched-preview-list" style="max-height: 180px; overflow-y: auto; font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-pure); display: flex; flex-direction: column; gap: 0.4rem;">
+                        <!-- Injected by previewAutoSchedule() -->
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+                    <button type="button" class="btn-secondary" onclick="document.getElementById('auto-schedule-modal').classList.remove('active')">
+                        Cancel
+                    </button>
+                    <button type="submit" class="btn-primary" id="btn-auto-schedule-commit">
+                        ⚡ Generate &amp; Commit Schedule
                     </button>
                 </div>
             </form>

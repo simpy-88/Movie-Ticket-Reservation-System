@@ -243,7 +243,7 @@ ORDER BY Occupancy_Percentage DESC;
 
 -- ----------------------------------------------------------------------------
 -- QUERY 12: Relational Intersection Simulation
--- Objective: Find customers who booked tickets for both 'Superman: Legacy' 
+-- Objective: Find customers who booked tickets for both 'Superman' 
 --            AND 'Heat'.
 -- Concepts: Intersection using compound IN subqueries.
 -- ----------------------------------------------------------------------------
@@ -254,7 +254,7 @@ WHERE c.Customer_ID IN (
     FROM BOOKING b
     INNER JOIN SHOWS sh ON b.Show_ID = sh.Show_ID
     INNER JOIN MOVIE m ON sh.Movie_ID = m.Movie_ID
-    WHERE m.Movie_Name = 'Superman: Legacy'
+    WHERE m.Movie_Name = 'Superman'
 )
 AND c.Customer_ID IN (
     SELECT b.Customer_ID

@@ -1166,3 +1166,81 @@ body {
     }
 }
 
+/* ============================================================================
+   PRINT STYLES FOR E-TICKET (Requirement 13)
+   ============================================================================ */
+@media print {
+    body, html {
+        background: #ffffff !important;
+        color: #000000 !important;
+        overflow: visible !important;
+    }
+
+    /* Hide non-ticket elements during print */
+    .navbar,
+    .main-container,
+    .main-content,
+    .booking-dock,
+    .toast-container,
+    #ticket-modal-close-btn,
+    .ticket-action-bar,
+    .modal-close-btn,
+    .admin-view {
+        display: none !important;
+    }
+
+    #ticket-modal {
+        position: static !important;
+        display: block !important;
+        background: none !important;
+        padding: 0 !important;
+        overflow: visible !important;
+        box-shadow: none !important;
+    }
+
+    #ticket-modal .modal-box {
+        position: static !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        background: none !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        transform: none !important;
+    }
+
+    .ticket-pass {
+        border: 2px solid #000000 !important;
+        box-shadow: none !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+        page-break-inside: avoid;
+        margin: 0 auto !important;
+    }
+
+    .ticket-header {
+        background: #111827 !important;
+        color: #ffffff !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    .ticket-body {
+        background: #ffffff !important;
+        color: #111827 !important;
+    }
+
+    .ticket-movie-title {
+        color: #111827 !important;
+    }
+
+    .ticket-item-value {
+        color: #111827 !important;
+    }
+
+    .ticket-item-value.seats-highlight {
+        color: #b45309 !important;
+    }
+}
+
+

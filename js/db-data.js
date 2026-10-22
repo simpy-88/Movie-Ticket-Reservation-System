@@ -221,11 +221,11 @@ const SEED_DATA = {
     SEAT: [], // Populated dynamically below matching each screen's real capacity
 
     CUSTOMER: [
-        { Customer_ID: 'CU01', Customer_Name: 'Rahul Sharma', Email: 'rahul.s@example.com', Phone: '9876543210', Password: 'hash_pass_123' },
-        { Customer_ID: 'CU02', Customer_Name: 'Priya Patel', Email: 'priya.p@example.com', Phone: '9876543211', Password: 'hash_pass_234' },
-        { Customer_ID: 'CU03', Customer_Name: 'Ananya Iyer', Email: 'ananya.i@example.com', Phone: '9876543212', Password: 'hash_pass_345' },
-        { Customer_ID: 'CU04', Customer_Name: 'Vikram Singh', Email: 'vikram.s@example.com', Phone: '9876543213', Password: 'hash_pass_456' },
-        { Customer_ID: 'CU05', Customer_Name: 'Sneha Reddy', Email: 'sneha.r@example.com', Phone: '9876543214', Password: 'hash_pass_567' }
+        { Customer_ID: 'CU01', Customer_Name: 'Rahul Sharma', Email: 'rahul.s@example.com', Phone: '9876543210' },
+        { Customer_ID: 'CU02', Customer_Name: 'Priya Patel', Email: 'priya.p@example.com', Phone: '9876543211' },
+        { Customer_ID: 'CU03', Customer_Name: 'Ananya Iyer', Email: 'ananya.i@example.com', Phone: '9876543212' },
+        { Customer_ID: 'CU04', Customer_Name: 'Vikram Singh', Email: 'vikram.s@example.com', Phone: '9876543213' },
+        { Customer_ID: 'CU05', Customer_Name: 'Sneha Reddy', Email: 'sneha.r@example.com', Phone: '9876543214' }
     ],
 
     BOOKING: [
@@ -435,13 +435,13 @@ ORDER BY Occupancy_Percentage DESC;`,
 FROM CUSTOMER c
 WHERE c.Customer_ID IN (
     SELECT b.Customer_ID FROM BOOKING b INNER JOIN SHOWS sh ON b.Show_ID = sh.Show_ID
-    INNER JOIN MOVIE m ON sh.Movie_ID = m.Movie_ID WHERE m.Movie_Name = 'Superman: Legacy'
+    INNER JOIN MOVIE m ON sh.Movie_ID = m.Movie_ID WHERE m.Movie_Name = 'Superman'
 )
 AND c.Customer_ID IN (
     SELECT b.Customer_ID FROM BOOKING b INNER JOIN SHOWS sh ON b.Show_ID = sh.Show_ID
     INNER JOIN MOVIE m ON sh.Movie_ID = m.Movie_ID WHERE m.Movie_Name = 'Heat'
 );`,
-        description: 'Finds customers who booked tickets for both Superman: Legacy AND Heat.'
+        description: 'Finds customers who booked tickets for both Superman AND Heat.'
     },
     {
         id: 13,

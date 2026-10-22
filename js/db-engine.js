@@ -26,6 +26,14 @@ class MTRSRelationalEngine {
                     const sc21 = this.db.SCREEN.find(s => s.Screen_ID === 'SC21');
                     if (sc21 && sc21.Capacity !== 450) { sc21.Capacity = 450; changed = true; }
                 }
+                // Ensure M01 is named 'Superman' across persistent storage (Requirement 11)
+                if (Array.isArray(this.db.MOVIE)) {
+                    const m01 = this.db.MOVIE.find(m => m.Movie_ID === 'M01');
+                    if (m01 && m01.Movie_Name !== 'Superman') {
+                        m01.Movie_Name = 'Superman';
+                        changed = true;
+                    }
+                }
                 if (changed) this.save();
             } catch (e) {
                 console.error("Failed to parse stored DB, resetting to Chennai seed:", e);
@@ -55,6 +63,31 @@ class MTRSRelationalEngine {
             throw new Error(`Relation '${tableName}' does not exist in schema.`);
         }
         return this.db[tableName];
+    }
+
+    /**
+     * Registers a new legitimate customer account (Requirement 12)
+     */
+    registerCustomer({ name, email, phone }) {
+        if (!name || !email) throw new Error("Name and Email are required to register.");
+        const customers = this.getTable('CUSTOMER');
+        const existing = customers.find(c => c.Email.toLowerCase() === email.toLowerCase());
+        if (existing) {
+            return existing; // Return existing customer
+        }
+
+        const nextNum = customers.length + 1;
+        const customerId = `CU${nextNum < 10 ? '0' + nextNum : nextNum}`;
+        const newCustomer = {
+            Customer_ID: customerId,
+            Customer_Name: name.trim(),
+            Email: email.trim().toLowerCase(),
+            Phone: (phone || '').trim() || '9876543200'
+        };
+
+        customers.push(newCustomer);
+        this.save();
+        return newCustomer;
     }
 
     // ------------------------------------------------------------------------
@@ -476,8 +509,8 @@ class MTRSRelationalEngine {
                         const mv = movies.find(m => m.Movie_ID === sh.Movie_ID);
                         return mv ? mv.Movie_Name : '';
                     }));
-                    if (watchedMovies.has('Superman: Legacy') && watchedMovies.has('Heat')) {
-                        return [c.Customer_ID, c.Customer_Name, c.Email, 'Superman: Legacy & Heat'];
+                    if ((watchedMovies.has('Superman') || watchedMovies.has('Superman: Legacy')) && watchedMovies.has('Heat')) {
+                        return [c.Customer_ID, c.Customer_Name, c.Email, 'Superman & Heat'];
                     }
                     return null;
                 }).filter(Boolean);

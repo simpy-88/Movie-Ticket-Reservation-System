@@ -104,7 +104,7 @@ INSERT INTO SCREEN (Screen_ID, Theater_ID, Screen_Number, Screen_Name, Screen_Ty
 -- 3. SEED DATA: MOVIE (M01 - M06)
 -- ----------------------------------------------------------------------------
 INSERT INTO MOVIE (Movie_ID, Movie_Name, Genre, Rating, Duration, Language) VALUES
-('M01', 'Superman: Legacy', 'Action/Sci-Fi', 8.6, 150, 'English'),
+('M01', 'Superman', 'Action/Sci-Fi', 8.6, 150, 'English'),
 ('M02', 'Heat', 'Action/Crime', 8.3, 170, 'English'),
 ('M03', 'La La Land', 'Musical/Romance', 8.0, 128, 'English'),
 ('M04', 'Interstellar', 'Sci-Fi/Adventure', 8.7, 169, 'English'),

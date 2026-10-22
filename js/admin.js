@@ -103,11 +103,14 @@ class MTRSAdminPanel {
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.75rem;">
                 <div>
                     <h4 style="color: var(--text-pure); font-size: 1.1rem;">Scheduled Movie Shows (${shows.length})</h4>
-                    <p style="color: var(--text-muted); font-size: 0.82rem;">Across 6 Chennai Cinema Multiplexes</p>
+                <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                    <button class="btn-primary" style="background: linear-gradient(135deg, var(--accent-cyan), var(--primary)); padding: 0.5rem 1rem; font-size: 0.85rem;" onclick="window.MTRSAdmin.openAutoScheduleModal()">
+                        ⚡ Auto-Schedule Showtimes
+                    </button>
+                    <button class="btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem;" onclick="window.MTRSAdmin.openAddShowModal()">
+                        + Add New Show
+                    </button>
                 </div>
-                <button class="btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem;" onclick="window.MTRSAdmin.openAddShowModal()">
-                    + Add New Show
-                </button>
             </div>
 
             <table class="data-table">
@@ -202,10 +205,15 @@ class MTRSAdminPanel {
         const newStartTotal = startH * 60 + startM;
         const newEndTotal = newStartTotal + duration;
 
-        // Showtime Scheduling Overlap Validation (Feature 5) with 20-min cleaning/turnover interval
+        if (newEndTotal > 1560) {
+            window.App.showToast("Show cannot exceed the 2:00 AM cinema closing deadline.", "error");
+            return;
+        }
+
+        // Showtime Scheduling Overlap Validation with 15-min cleaning/turnover interval (Requirement 15)
         const shows = this.engine.getTable('SHOWS');
         const screenShows = shows.filter(s => s.Screen_ID === screenId && s.Show_Date === date);
-        const turnoverMinutes = 20;
+        const turnoverMinutes = 15;
 
         for (const exShow of screenShows) {
             const exMovie = movies.find(m => m.Movie_ID === exShow.Movie_ID);
@@ -221,12 +229,16 @@ class MTRSAdminPanel {
 
             if (newWindowStart < exWindowEnd && newWindowEnd > exWindowStart) {
                 const exRange = window.MTRSUtil ? window.MTRSUtil.formatShowtimeRange(exShow.Show_Time, exDuration) : exShow.Show_Time;
-                window.App.showToast(`Scheduling Conflict: Screen already has ${exShow.Show_ID} (${exRange}). With 20-min cleaning turnover, the new show cannot overlap.`, "error");
+                window.App.showToast(`Scheduling Conflict: Screen already has ${exShow.Show_ID} (${exRange}). With 15-min cleaning turnover, the new show cannot overlap.`, "error");
                 return;
             }
         }
 
-        const nextId = `SH${shows.length < 9 ? '0' + (shows.length + 1) : (shows.length + 1)}`;
+        const maxNum = shows.reduce((max, s) => {
+            const n = parseInt(String(s.Show_ID).replace(/\D/g, ''), 10);
+            return isNaN(n) ? max : Math.max(max, n);
+        }, 0);
+        const nextId = `SH${maxNum + 1 < 10 ? '0' + (maxNum + 1) : (maxNum + 1)}`;
 
         shows.push({
             Show_ID: nextId,
@@ -242,6 +254,218 @@ class MTRSAdminPanel {
         document.getElementById('add-show-modal').classList.remove('active');
         window.App.showToast(`Show ${nextId} added to schedule successfully.`, "success");
         this.refreshDashboard();
+    }
+
+    // ------------------------------------------------------------------------
+    // AUTOMATIC SHOWTIME SCHEDULER (Requirement 15)
+    // Generates showtimes from 9:00 AM (540 min) to 2:00 AM (1560 min)
+    // with mandatory 15-minute cleaning intervals between consecutive shows
+    // ------------------------------------------------------------------------
+    openAutoScheduleModal() {
+        const modal = document.getElementById('auto-schedule-modal');
+        if (!modal) return;
+
+        const theaters = this.engine.getTable('THEATER');
+        const movies = this.engine.getTable('MOVIE');
+
+        const theatreSelect = document.getElementById('auto-sched-theatre');
+        const movieSelect = document.getElementById('auto-sched-movie');
+
+        if (theatreSelect) {
+            theatreSelect.innerHTML = theaters.map(t => `<option value="${t.Theater_ID}">${t.Theater_Name}</option>`).join('');
+        }
+
+        if (movieSelect) {
+            movieSelect.innerHTML = movies.map(m => `<option value="${m.Movie_ID}">${m.Movie_Name} (${m.Duration}m • ${m.Language})</option>`).join('');
+        }
+
+        this.onAutoScheduleTheatreChange();
+        modal.classList.add('active');
+    }
+
+    onAutoScheduleTheatreChange() {
+        const theatreId = document.getElementById('auto-sched-theatre').value;
+        const screens = this.engine.getTable('SCREEN').filter(s => s.Theater_ID === theatreId);
+        const screenSelect = document.getElementById('auto-sched-screen');
+
+        if (screenSelect) {
+            screenSelect.innerHTML = screens.map(s => `
+                <option value="${s.Screen_ID}">${s.Screen_Name || `Screen ${s.Screen_Number}`} (${s.Screen_Type})</option>
+            `).join('');
+        }
+
+        this.previewAutoSchedule();
+    }
+
+    calculateAutoScheduleList(movieId, screenId, date, format, ticketPrice) {
+        const movies = this.engine.getTable('MOVIE');
+        const movie = movies.find(m => m.Movie_ID === movieId);
+        const duration = movie && movie.Duration ? parseInt(movie.Duration, 10) : 120;
+
+        const START_WINDOW = 540;   // 09:00 AM
+        const CLOSE_DEADLINE = 1560; // 02:00 AM next day (26:00)
+        const CLEANING_INTERVAL = 15; // 15 minutes mandatory turnover
+
+        const shows = [];
+        let curStart = START_WINDOW;
+
+        while (curStart + duration <= CLOSE_DEADLINE) {
+            const curEnd = curStart + duration;
+
+            // Normalize start time for HH:MM:00 representation
+            const startNormalized = curStart % 1440;
+            const startH = Math.floor(startNormalized / 60);
+            const startM = startNormalized % 60;
+            const timeStr = `${startH < 10 ? '0' + startH : startH}:${startM < 10 ? '0' + startM : startM}:00`;
+
+            // Check if end crosses midnight
+            const crossesMidnight = curEnd >= 1440;
+
+            shows.push({
+                Movie_ID: movieId,
+                Screen_ID: screenId,
+                Show_Date: date,
+                Show_Time: timeStr,
+                Format: format,
+                Ticket_Price: parseFloat(ticketPrice) || 350,
+                startMinutes: curStart,
+                endMinutes: curEnd,
+                duration: duration,
+                crossesMidnight: crossesMidnight
+            });
+
+            // Advance start time by runtime + 15 minutes cleaning interval
+            curStart = curEnd + CLEANING_INTERVAL;
+        }
+
+        return shows;
+    }
+
+    previewAutoSchedule() {
+        const movieId = document.getElementById('auto-sched-movie') ? document.getElementById('auto-sched-movie').value : null;
+        const screenId = document.getElementById('auto-sched-screen') ? document.getElementById('auto-sched-screen').value : null;
+        const date = document.getElementById('auto-sched-date') ? document.getElementById('auto-sched-date').value : '2026-10-22';
+        const format = document.getElementById('auto-sched-format') ? document.getElementById('auto-sched-format').value : '2D';
+        const price = document.getElementById('auto-sched-price') ? document.getElementById('auto-sched-price').value : 350;
+
+        const listEl = document.getElementById('auto-sched-preview-list');
+        const countEl = document.getElementById('auto-sched-preview-count');
+        if (!listEl || !movieId || !screenId) return;
+
+        const schedule = this.calculateAutoScheduleList(movieId, screenId, date, format, price);
+        const movies = this.engine.getTable('MOVIE');
+        const movie = movies.find(m => m.Movie_ID === movieId) || {};
+
+        if (countEl) countEl.textContent = `${schedule.length} showtimes generated`;
+
+        listEl.innerHTML = schedule.map((s, idx) => {
+            const rangeStr = window.MTRSUtil ? window.MTRSUtil.formatShowtimeRange(s.Show_Time, s.duration) : s.Show_Time;
+            const badgeCross = s.crossesMidnight ? '<span style="color: var(--accent-gold); font-size: 0.72rem; margin-left: 0.4rem;">[Crosses Midnight]</span>' : '';
+            return `
+                <div style="padding: 0.35rem 0.5rem; background: rgba(255,255,255,0.03); border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
+                    <span><strong>Show ${idx + 1}:</strong> ${rangeStr} ${badgeCross}</span>
+                    <span style="color: var(--text-muted); font-size: 0.72rem;">+15m clean</span>
+                </div>
+            `;
+        }).join('');
+    }
+
+    commitAutoSchedule() {
+        const movieId = document.getElementById('auto-sched-movie').value;
+        const screenId = document.getElementById('auto-sched-screen').value;
+        const date = document.getElementById('auto-sched-date').value;
+        const format = document.getElementById('auto-sched-format').value;
+        const price = parseFloat(document.getElementById('auto-sched-price').value) || 350;
+        const replaceExisting = document.getElementById('auto-sched-replace').checked;
+
+        const result = this.autoGenerateScreenSchedule({
+            movieId,
+            screenId,
+            date,
+            format,
+            ticketPrice: price,
+            replaceExisting
+        });
+
+        document.getElementById('auto-schedule-modal').classList.remove('active');
+        window.App.showToast(`Auto-scheduled ${result.length} shows on screen ${screenId} for ${date}`, "success");
+        this.refreshDashboard();
+    }
+
+    autoGenerateScreenSchedule({ screenId, movieId, date, format = '2D', ticketPrice = 350, replaceExisting = false }) {
+        const calculated = this.calculateAutoScheduleList(movieId, screenId, date, format, ticketPrice);
+        let allShows = this.engine.getTable('SHOWS');
+
+        if (replaceExisting) {
+            // Remove shows for this screen and date (except those with active bookings)
+            const bookings = this.engine.getTable('BOOKING');
+            allShows = allShows.filter(s => {
+                if (s.Screen_ID === screenId && s.Show_Date === date) {
+                    const hasBooking = bookings.some(b => b.Show_ID === s.Show_ID);
+                    return hasBooking; // preserve booked shows to maintain foreign keys
+                }
+                return true;
+            });
+            this.engine.db.SHOWS = allShows;
+        }
+
+        // Determine highest show ID number
+        let maxIdNum = allShows.reduce((max, s) => {
+            const num = parseInt(String(s.Show_ID).replace(/\D/g, ''), 10);
+            return isNaN(num) ? max : Math.max(max, num);
+        }, 0);
+
+        const createdShows = [];
+        for (const item of calculated) {
+            maxIdNum++;
+            const nextId = `SH${maxIdNum < 10 ? '0' + maxIdNum : maxIdNum}`;
+            const newShow = {
+                Show_ID: nextId,
+                Movie_ID: item.Movie_ID,
+                Screen_ID: item.Screen_ID,
+                Show_Date: item.Show_Date,
+                Show_Time: item.Show_Time,
+                Format: item.Format,
+                Ticket_Price: item.Ticket_Price
+            };
+            allShows.push(newShow);
+            createdShows.push(newShow);
+        }
+
+        this.engine.save();
+        return createdShows;
+    }
+
+    autoGenerateTheatreSchedule({ theaterId, date, movieAssignments = null, replaceExisting = false }) {
+        const screens = this.engine.getTable('SCREEN').filter(s => s.Theater_ID === theaterId);
+        const movies = this.engine.getTable('MOVIE');
+        const allCreated = [];
+
+        screens.forEach((screen, index) => {
+            let assignedMovieId;
+            if (movieAssignments && movieAssignments[screen.Screen_ID]) {
+                assignedMovieId = movieAssignments[screen.Screen_ID];
+            } else {
+                assignedMovieId = movies[index % movies.length].Movie_ID;
+            }
+
+            const format = screen.Screen_Type && screen.Screen_Type.includes('IMAX') ? 'IMAX 3D' : 
+                          (screen.Screen_Type && screen.Screen_Type.includes('P[XL]') ? 'P[XL] 3D' : '2D');
+            const price = format.includes('IMAX') ? 480 : (format.includes('P[XL]') ? 420 : 250);
+
+            const screenShows = this.autoGenerateScreenSchedule({
+                screenId: screen.Screen_ID,
+                movieId: assignedMovieId,
+                date,
+                format,
+                ticketPrice: price,
+                replaceExisting
+            });
+            allCreated.push(...screenShows);
+        });
+
+        this.refreshDashboard();
+        return allCreated;
     }
 
     editShowPrice(showId) {
