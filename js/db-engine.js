@@ -434,6 +434,30 @@ class MTRSRelationalEngine {
     }
 
     /**
+     * Stored Procedure: sp_CheckSeatAvailability
+     * Returns physical seat inventory with active booking status for local fallback.
+     */
+    sp_CheckSeatAvailability(showId) {
+        const show = this.getTable('SHOWS').find(s => s.Show_ID === showId);
+        if (!show) return [];
+        const screenSeats = this.getTable('SEAT').filter(s => s.Screen_ID === show.Screen_ID);
+        const showBookings = this.getTable('BOOKING').filter(b => b.Show_ID === showId);
+        const bookingIds = new Set(showBookings.map(b => b.Booking_ID));
+        const bookedSeatIds = new Set(
+            this.getTable('BOOKED_SEAT')
+                .filter(bs => bookingIds.has(bs.Booking_ID))
+                .map(bs => bs.Seat_ID)
+        );
+        return screenSeats.map(seat => ({
+            Seat_ID: seat.Seat_ID,
+            Screen_ID: seat.Screen_ID,
+            Seat_Number: seat.Seat_Number,
+            Seat_Type: seat.Seat_Type,
+            Status: bookedSeatIds.has(seat.Seat_ID) ? 'BOOKED' : 'AVAILABLE'
+        }));
+    }
+
+    /**
      * Stored Procedure: sp_GetShowRevenueReport
      * Returns movie title, theater, screen name, type, occupancy %, and total revenue.
      */

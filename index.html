@@ -42,13 +42,19 @@
         </ul>
 
         <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <!-- Database Source Status Indicator -->
+            <div id="db-status-badge" class="db-status-badge loading" title="Connecting to Supabase public.movies...">
+                <span class="status-dot"></span>
+                <span id="db-status-text">CONNECTING...</span>
+            </div>
+
             <button id="btn-reset-db" class="btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.78rem;" title="Reset Relational Database to Chennai Seed Data">
                 🔄 Reset DB
             </button>
 
             <div class="nav-user-pill" id="user-profile-pill" title="Manage Customer Account / Sign In">
-                <div class="user-avatar" id="navbar-user-avatar">RS</div>
-                <div class="user-info" id="navbar-user-name">Rahul Sharma</div>
+                <div class="user-avatar" id="navbar-user-avatar">👤</div>
+                <div class="user-info" id="navbar-user-name">Sign In</div>
                 <span style="font-size: 0.7rem; color: var(--text-muted);">▼</span>
             </div>
         </div>
@@ -126,9 +132,14 @@
 
         <!-- Movie Catalog Grid -->
         <section class="main-content">
-            <div class="section-header">
-                <h2 class="section-title">Current Theatrical Releases in Chennai</h2>
-                <span style="font-size: 0.88rem; color: var(--text-muted);">Live schedules across 6 verified Chennai destinations</span>
+            <div class="section-header" style="display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 0.75rem;">
+                <div>
+                    <h2 class="section-title">Current Theatrical Releases in Chennai</h2>
+                    <span style="font-size: 0.88rem; color: var(--text-muted);">Live schedules across 6 verified Chennai destinations</span>
+                </div>
+                <div id="catalog-source-tag" class="catalog-source-tag" title="Catalogue Data Origin">
+                    <span id="catalog-source-text">Loading Catalogue...</span>
+                </div>
             </div>
             <div class="movie-grid" id="movie-grid-container">
                 <!-- Movie cards populated by js/app.js -->
@@ -355,12 +366,15 @@
                         Payment Mode:
                     </label>
                     <select id="checkout-payment-mode" class="query-selector-select" style="margin-bottom: 0; padding: 0.6rem 0.85rem; font-size: 0.88rem;">
-                        <option value="UPI">UPI (GooglePay / PhonePe)</option>
-                        <option value="Credit Card">Credit Card</option>
-                        <option value="Debit Card">Debit Card</option>
-                        <option value="Net Banking">Net Banking</option>
-                        <option value="Cash">Cash at Counter</option>
+                        <option value="UPI">UPI (GooglePay / PhonePe) [Simulated]</option>
+                        <option value="Credit Card">Credit Card [Simulated]</option>
+                        <option value="Debit Card">Debit Card [Simulated]</option>
+                        <option value="Net Banking">Net Banking [Simulated]</option>
+                        <option value="Cash">Cash at Counter [Simulated]</option>
                     </select>
+                    <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.35rem;">
+                        ⚡ Simulation Mode: No real payment collected.
+                    </div>
                 </div>
             </div>
 
@@ -385,9 +399,9 @@
     <!-- ====================================================================
          CUSTOMER ACCOUNT & SIGN-IN / REGISTER MODAL (Requirement 12)
          ==================================================================== -->
-    <div id="account-modal" class="modal-backdrop" onclick="if(event.target === this) this.classList.remove('active')">
+    <div id="account-modal" class="modal-backdrop" onclick="if(event.target === this) window.App.closeAccountModal()">
         <div class="modal-box" style="max-width: 480px;">
-            <button class="modal-close-btn" onclick="document.getElementById('account-modal').classList.remove('active')" title="Close Account Modal">✕</button>
+            <button class="modal-close-btn" onclick="window.App.closeAccountModal()" title="Close Account Modal">✕</button>
             <h3 style="font-family: var(--font-heading); font-size: 1.3rem; color: var(--text-pure); margin-bottom: 0.35rem;">
                 Customer Account
             </h3>
@@ -395,18 +409,58 @@
                 Manage your authenticated customer profile or register a new customer.
             </p>
 
+            <!-- Customer Profile Card -->
             <div id="account-profile-card" style="background: var(--bg-surface-elevated); border: var(--glass-border); border-radius: var(--radius-md); padding: 1rem; margin-bottom: 1.25rem;">
-                <div style="display: flex; align-items: center; gap: 0.85rem;">
-                    <div class="user-avatar" id="account-avatar" style="width: 42px; height: 42px; font-size: 1.1rem;">RS</div>
-                    <div>
-                        <div id="account-name" style="font-family: var(--font-heading); font-weight: 700; color: var(--text-pure); font-size: 1.1rem;">Rahul Sharma</div>
-                        <div id="account-details" style="font-size: 0.82rem; color: var(--text-secondary);">rahul.s@example.com • 9876543210</div>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.85rem; flex-wrap: wrap;">
+                    <div style="display: flex; align-items: center; gap: 0.85rem;">
+                        <div class="user-avatar" id="account-avatar" style="width: 42px; height: 42px; font-size: 1.1rem;">👤</div>
+                        <div>
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <div id="account-name" style="font-family: var(--font-heading); font-weight: 700; color: var(--text-pure); font-size: 1.1rem;">Guest Session</div>
+                                <span id="account-badge" class="selected-seat-chip" style="font-size: 0.65rem; padding: 2px 6px; display: none;">--</span>
+                            </div>
+                            <div id="account-details" style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 2px;">Sign in or register below to access live bookings and checkout.</div>
+                        </div>
                     </div>
+                    <button type="button" id="btn-account-signout" class="btn-secondary" style="padding: 0.35rem 0.75rem; font-size: 0.75rem; display: none;" onclick="window.App.handleCustomerSignOut()">Sign Out</button>
                 </div>
             </div>
 
-            <!-- Tab Buttons for Switch Account / Register New -->
-            <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.5rem;">
+            <!-- Authenticated Profile Notice & Quick Links (Shown only when signed in) -->
+            <div id="account-auth-info" style="display: none; background: rgba(0, 240, 255, 0.05); border: 1px solid rgba(0, 240, 255, 0.2); border-radius: var(--radius-md); padding: 0.85rem 1rem; margin-bottom: 1.25rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--accent-cyan); font-size: 0.85rem; font-weight: 600;">
+                    <span>✓</span>
+                    <span>Authenticated Customer Session Active</span>
+                </div>
+                <div style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                    Your account is securely authenticated and linked to your customer profile. You can book tickets, view reservations, and receive automatic confirmation emails.
+                </div>
+                <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    <button type="button" class="btn-primary" style="padding: 0.4rem 0.85rem; font-size: 0.8rem;" onclick="window.App.closeAccountModal(); window.App.switchView('my-bookings');">
+                        🎟️ View My Bookings
+                    </button>
+                    <button type="button" class="btn-secondary" style="padding: 0.4rem 0.85rem; font-size: 0.8rem;" onclick="window.App.closeAccountModal();">
+                        Continue Browsing
+                    </button>
+                </div>
+            </div>
+
+            <!-- Unlinked Account / Email Verification Warning (Shown if user is signed in to Auth but profile is not linked) -->
+            <div id="account-unlinked-warning" style="display: none; background: rgba(245, 166, 35, 0.1); border: 1px solid var(--accent-gold); border-radius: var(--radius-md); padding: 0.85rem 1rem; margin-bottom: 1.25rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--accent-gold); font-size: 0.85rem; font-weight: 700;">
+                    <span>⚠️</span>
+                    <span id="account-unlinked-title">Customer Profile Resolution Required</span>
+                </div>
+                <div id="account-unlinked-msg" style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                    Your authentication session is active, but your customer record is not yet linked. If you just registered, please verify your email address to complete activation.
+                </div>
+                <button type="button" id="btn-retry-link" class="btn-secondary" style="margin-top: 0.65rem; padding: 0.35rem 0.75rem; font-size: 0.75rem;" onclick="window.App.retryProfileLinking()">
+                    🔄 Retry Profile Linking
+                </button>
+            </div>
+
+            <!-- Tab Buttons for Switch Account / Register New (Hidden when authenticated) -->
+            <div id="account-tabs-header" style="display: flex; gap: 0.5rem; margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.5rem;">
                 <button type="button" class="filter-chip active" id="btn-tab-signin" onclick="window.App.switchAccountTab('signin')">Sign In</button>
                 <button type="button" class="filter-chip" id="btn-tab-register" onclick="window.App.switchAccountTab('register')">Register New Customer</button>
             </div>
@@ -414,11 +468,15 @@
             <!-- Sign In Form -->
             <div id="tab-account-signin">
                 <form onsubmit="event.preventDefault(); window.App.handleCustomerSignIn();">
-                    <div style="margin-bottom: 1rem;">
-                        <label for="signin-email" style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem;">Customer Email or ID:</label>
-                        <input type="text" id="signin-email" class="search-input" placeholder="e.g. rahul.s@example.com or CU01" required style="padding-left: 0.85rem;">
+                    <div style="margin-bottom: 0.85rem;">
+                        <label for="signin-email" style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem;">Customer Email Address *</label>
+                        <input type="email" id="signin-email" class="search-input" placeholder="e.g. rahul.s@example.com" required style="padding-left: 0.85rem;">
                     </div>
-                    <button type="submit" class="btn-primary" style="width: 100%; justify-content: center;">Sign In</button>
+                    <div style="margin-bottom: 1.25rem;">
+                        <label for="signin-password" style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem;">Account Password *</label>
+                        <input type="password" id="signin-password" class="search-input" placeholder="Enter your password" required style="padding-left: 0.85rem;">
+                    </div>
+                    <button type="submit" id="btn-signin-submit" class="btn-primary" style="width: 100%; justify-content: center;">Sign In</button>
                 </form>
             </div>
 
@@ -433,11 +491,15 @@
                         <label for="register-email" style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Email Address *</label>
                         <input type="email" id="register-email" class="search-input" placeholder="e.g. aditi.v@example.com" required style="padding-left: 0.85rem;">
                     </div>
-                    <div style="margin-bottom: 1.25rem;">
+                    <div style="margin-bottom: 0.75rem;">
                         <label for="register-phone" style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Phone Number *</label>
                         <input type="tel" id="register-phone" class="search-input" placeholder="e.g. 9840123456" required style="padding-left: 0.85rem;">
                     </div>
-                    <button type="submit" class="btn-primary" style="width: 100%; justify-content: center;">Create Account</button>
+                    <div style="margin-bottom: 1.25rem;">
+                        <label for="register-password" style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Create Password (min 6 characters) *</label>
+                        <input type="password" id="register-password" class="search-input" placeholder="Choose a secure password" minlength="6" required style="padding-left: 0.85rem;">
+                    </div>
+                    <button type="submit" id="btn-register-submit" class="btn-primary" style="width: 100%; justify-content: center;">Create Account</button>
                 </form>
             </div>
         </div>
@@ -825,10 +887,16 @@
     </div>
 
     <!-- Scripts (In Dependency Order) -->
+    <!-- 1. Official Supabase JavaScript Client via CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- 2. Dedicated MTRS Supabase Client Configuration & Data Service -->
+    <script src="js/supabase-client.js"></script>
+    <!-- 3. Local Stores, Assets & Relational Engine -->
     <script src="js/image-store.js"></script>
     <script src="assets/posters.js"></script>
     <script src="js/db-data.js"></script>
     <script src="js/db-engine.js"></script>
+    <!-- 4. Application Controllers -->
     <script src="js/app.js"></script>
     <script src="js/admin.js"></script>
 

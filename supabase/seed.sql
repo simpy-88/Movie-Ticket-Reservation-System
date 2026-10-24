@@ -301,10 +301,97 @@ INSERT INTO payments (payment_id, booking_id, payment_mode, amount, payment_date
 ON CONFLICT (payment_id) DO NOTHING;
 
 -- ------------------------------------------------------------------------------
--- 10. SYNCHRONIZE SEQUENCE COUNTERS
--- Ensures future bookings, payments, customers, and shows generate non-colliding IDs.
+-- 10. SYNCHRONIZE SEQUENCE COUNTERS (SAFE, NON-DECREASING ALIGNMENT)
+-- Ensures future bookings, payments, customers, and shows generate non-colliding IDs
+-- without ever moving an already-advanced sequence counter backwards.
 -- ------------------------------------------------------------------------------
-SELECT setval('booking_id_seq', 9, false);
-SELECT setval('payment_id_seq', 9, false);
-SELECT setval('customer_id_seq', 6, false);
-SELECT setval('show_id_seq', 19, false);
+CREATE SEQUENCE IF NOT EXISTS booking_id_seq START WITH 9;
+CREATE SEQUENCE IF NOT EXISTS payment_id_seq START WITH 9;
+CREATE SEQUENCE IF NOT EXISTS customer_id_seq START WITH 6;
+CREATE SEQUENCE IF NOT EXISTS show_id_seq START WITH 19;
+
+DO $$
+DECLARE
+    -- Maximum integer IDs present in tables
+    v_max_bk INT;
+    v_max_pay INT;
+    v_max_cu INT;
+    v_max_sh INT;
+
+    -- Current sequence state (last_value and is_called)
+    v_seq_last BIGINT;
+    v_seq_called BOOLEAN;
+
+    -- Next value that the sequence would naturally produce without intervention
+    v_cur_next_bk INT;
+    v_cur_next_pay INT;
+    v_cur_next_cu INT;
+    v_cur_next_sh INT;
+
+    -- Required next minimum values
+    v_needed_bk INT;
+    v_needed_pay INT;
+    v_needed_cu INT;
+    v_needed_sh INT;
+BEGIN
+    -- 1. Scan maximum existing IDs from table data (0 if table is empty)
+    SELECT COALESCE(MAX(SUBSTRING(booking_id FROM 3)::INT), 0) INTO v_max_bk FROM bookings WHERE booking_id ~ '^BK[0-9]+$';
+    SELECT COALESCE(MAX(SUBSTRING(payment_id FROM 4)::INT), 0) INTO v_max_pay FROM payments WHERE payment_id ~ '^PAY[0-9]+$';
+    SELECT COALESCE(MAX(SUBSTRING(customer_id FROM 3)::INT), 0) INTO v_max_cu FROM customers WHERE customer_id ~ '^CU[0-9]+$';
+    SELECT COALESCE(MAX(SUBSTRING(show_id FROM 3)::INT), 0) INTO v_max_sh FROM shows WHERE show_id ~ '^SH[0-9]+$';
+
+    -- 2. Determine the required next minimum ID (clearing table records and seed ranges)
+    v_needed_bk := GREATEST(v_max_bk + 1, 9);
+    v_needed_pay := GREATEST(v_max_pay + 1, 9);
+    v_needed_cu := GREATEST(v_max_cu + 1, 6);
+    v_needed_sh := GREATEST(v_max_sh + 1, 19);
+
+    -- 3. Check and conditionally advance booking_id_seq
+    SELECT last_value, is_called INTO v_seq_last, v_seq_called FROM booking_id_seq;
+    IF v_seq_called THEN
+        v_cur_next_bk := (v_seq_last + 1)::INT;
+    ELSE
+        v_cur_next_bk := v_seq_last::INT;
+    END IF;
+
+    IF v_cur_next_bk < v_needed_bk THEN
+        PERFORM setval('booking_id_seq', v_needed_bk, false);
+    END IF;
+
+    -- 4. Check and conditionally advance payment_id_seq
+    SELECT last_value, is_called INTO v_seq_last, v_seq_called FROM payment_id_seq;
+    IF v_seq_called THEN
+        v_cur_next_pay := (v_seq_last + 1)::INT;
+    ELSE
+        v_cur_next_pay := v_seq_last::INT;
+    END IF;
+
+    IF v_cur_next_pay < v_needed_pay THEN
+        PERFORM setval('payment_id_seq', v_needed_pay, false);
+    END IF;
+
+    -- 5. Check and conditionally advance customer_id_seq
+    SELECT last_value, is_called INTO v_seq_last, v_seq_called FROM customer_id_seq;
+    IF v_seq_called THEN
+        v_cur_next_cu := (v_seq_last + 1)::INT;
+    ELSE
+        v_cur_next_cu := v_seq_last::INT;
+    END IF;
+
+    IF v_cur_next_cu < v_needed_cu THEN
+        PERFORM setval('customer_id_seq', v_needed_cu, false);
+    END IF;
+
+    -- 6. Check and conditionally advance show_id_seq
+    SELECT last_value, is_called INTO v_seq_last, v_seq_called FROM show_id_seq;
+    IF v_seq_called THEN
+        v_cur_next_sh := (v_seq_last + 1)::INT;
+    ELSE
+        v_cur_next_sh := v_seq_last::INT;
+    END IF;
+
+    IF v_cur_next_sh < v_needed_sh THEN
+        PERFORM setval('show_id_seq', v_needed_sh, false);
+    END IF;
+END $$;
+

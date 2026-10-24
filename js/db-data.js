@@ -538,26 +538,26 @@ WHERE NOT EXISTS (
 // DYNAMIC SEAT GENERATOR FOR AUDITORIUM CAPACITIES
 // Builds rows (VIP, Balcony, Premium, Regular) matching exact screen.Capacity
 // ============================================================================
-function generateAuditoriumSeats(screen, existingSeeds = []) {
-    const capacity = parseInt(screen.Capacity, 10) || 200;
+// CANONICAL SEAT-LAYOUT & AUDITORIUM GEOMETRY ENGINE
+// Shared between Admin Panel, Frontend Seat Map, and Supabase Seed Generation
+// ============================================================================
+function calculateScreenLayout(capacity) {
+    const cap = parseInt(capacity, 10) || 100;
     
-    // Choose proportional columns per row based on auditorium capacity
-    let colsPerRow = 20;
-    if (capacity <= 160) {
-        colsPerRow = 12;
-    } else if (capacity <= 260) {
-        colsPerRow = 16;
-    } else if (capacity <= 360) {
-        colsPerRow = 20;
-    } else if (capacity <= 550) {
-        colsPerRow = 22;
-    } else {
-        colsPerRow = 28; // Mega halls like Sathyam Main (948 seats)
-    }
+    // Determine cinema columns per row (even numbers for central aisle symmetry)
+    let colsPerRow = 14;
+    if (cap <= 100) colsPerRow = 10;
+    else if (cap <= 200) colsPerRow = 12;
+    else if (cap <= 300) colsPerRow = 14;
+    else if (cap <= 420) colsPerRow = 16;
+    else if (cap <= 550) colsPerRow = 18;
+    else if (cap <= 700) colsPerRow = 20;
+    else colsPerRow = 24;
 
-    const numRows = Math.ceil(capacity / colsPerRow);
+    const aisleCol = Math.floor(colsPerRow / 2);
+    const numRows = Math.ceil(cap / colsPerRow);
 
-    // Standard cinema row letters (skipping 'I' and 'O' for visual clarity)
+    // Standard cinema letters (skipping 'I' and 'O' for visual clarity)
     const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
     const rowLabels = [];
     for (let r = 0; r < numRows; r++) {
@@ -566,9 +566,26 @@ function generateAuditoriumSeats(screen, existingSeeds = []) {
         } else {
             const idx = r - LETTERS.length;
             const letter = LETTERS[idx % LETTERS.length];
-            rowLabels.push(letter + letter);
+            const prefix = LETTERS[Math.floor(idx / LETTERS.length)];
+            rowLabels.push(prefix + letter);
         }
     }
+
+    return {
+        capacity: cap,
+        colsPerRow: colsPerRow,
+        aisleCol: aisleCol,
+        numRows: numRows,
+        rowLabels: rowLabels
+    };
+}
+
+function generateAuditoriumSeats(screen, existingSeeds = []) {
+    const capacity = parseInt(screen.Capacity, 10) || 200;
+    const layout = calculateScreenLayout(capacity);
+    const colsPerRow = layout.colsPerRow;
+    const numRows = layout.numRows;
+    const rowLabels = layout.rowLabels;
 
     // Map existing pre-seeded seats by Seat_Number to preserve exact Seat_ID for booking relations
     const existingMap = new Map();
@@ -580,28 +597,24 @@ function generateAuditoriumSeats(screen, existingSeeds = []) {
         });
     }
 
-    // Physical Row Position & Pricing Hierarchy:
-    // Screen is at the FRONT (Row A is physically closest to the screen, cheapest)
-    // Front rows (0 to regularEnd): 'Regular' (Classic / Standard - Lowest Price)
-    // Middle rows (regularEnd to premiumEnd): 'Premium' (Executive - Moderate Price)
-    // Rear rows (premiumEnd to balconyEnd): 'Balcony' (Prime / Superior - High Price)
-    // Rearmost rows (balconyEnd to numRows): 'VIP' (Luxury Recliners - Highest Price)
-    const regularEnd = Math.max(1, Math.round(numRows * 0.28));
-    const premiumEnd = Math.max(regularEnd + 1, Math.round(numRows * 0.62));
-    const balconyEnd = Math.max(premiumEnd + 1, Math.round(numRows * 0.88));
-
     const seats = [];
     let count = 0;
 
     for (let r = 0; r < numRows && count < capacity; r++) {
         const rowLetter = rowLabels[r];
-        let tier = 'VIP'; // Rearmost rows
-        if (r < regularEnd) {
-            tier = 'Regular'; // Front rows closest to screen
-        } else if (r < premiumEnd) {
-            tier = 'Premium'; // Middle rows
-        } else if (r < balconyEnd) {
-            tier = 'Balcony'; // Rear rows
+        let tier = 'Regular';
+        if (rowLetter === 'A') {
+            tier = 'VIP';
+        } else if (rowLetter === 'B') {
+            tier = 'Balcony';
+        } else if (rowLetter === 'C') {
+            tier = 'Premium';
+        } else if (rowLetter === 'D') {
+            tier = 'Regular';
+        } else if (r < Math.ceil(numRows * 0.5)) {
+            tier = 'Premium';
+        } else {
+            tier = 'Regular';
         }
 
         const seatsInThisRow = Math.min(colsPerRow, capacity - count);
@@ -641,7 +654,9 @@ SEED_DATA.SCREEN.forEach(sc => {
     SEED_DATA.SEAT.push(...screenSeats);
 });
 
+window.calculateScreenLayout = calculateScreenLayout;
 window.generateAuditoriumSeats = generateAuditoriumSeats;
 window.SEED_DATA = SEED_DATA;
 window.ACADEMIC_QUERIES = ACADEMIC_QUERIES;
+
 

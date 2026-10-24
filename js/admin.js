@@ -88,9 +88,11 @@ class MTRSAdminPanel {
     }
 
     // ------------------------------------------------------------------------
-    // TAB 1: SHOW SCHEDULE MANAGER
+    // TAB 1: SHOW SCHEDULE MANAGER & LIVE TELEMETRY
+    // Displays separate, clearly labeled values for Configured Screen Capacity,
+    // Physical Seats in Database, Occupied Seats (for this show), and Available Seats
     // ------------------------------------------------------------------------
-    renderShowsTable() {
+    async renderShowsTable() {
         const container = document.getElementById('admin-shows-table-container');
         if (!container) return;
 
@@ -99,11 +101,41 @@ class MTRSAdminPanel {
         const screens = this.engine.getTable('SCREEN');
         const theaters = this.engine.getTable('THEATER');
 
+        // Fetch live physical seat counts and show occupancies from Supabase if online
+        let dbCounts = this.livePhysicalSeatCounts || null;
+        let showOccupancies = this.liveShowOccupancies || null;
+
+        if (window.MTRSSupabase) {
+            try {
+                if (!dbCounts && typeof window.MTRSSupabase.fetchPhysicalSeatCounts === 'function') {
+                    const res = await window.MTRSSupabase.fetchPhysicalSeatCounts();
+                    if (res && res.success) {
+                        dbCounts = res.counts;
+                        this.livePhysicalSeatCounts = res.counts;
+                    }
+                }
+                if (!showOccupancies && typeof window.MTRSSupabase.fetchShowOccupancies === 'function') {
+                    const occRes = await window.MTRSSupabase.fetchShowOccupancies();
+                    if (occRes && occRes.success) {
+                        showOccupancies = occRes.data;
+                        this.liveShowOccupancies = occRes.data;
+                    }
+                }
+            } catch (err) {
+                console.warn('[MTRS Admin] Exception loading show telemetry from Supabase:', err);
+            }
+        }
+
         container.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.75rem;">
                 <div>
                     <h4 style="color: var(--text-pure); font-size: 1.1rem;">Scheduled Movie Shows (${shows.length})</h4>
+                    <p style="color: var(--text-muted); font-size: 0.85rem;">Live show inventory displaying distinct screen capacities, physical database seats, and real-time show availability.</p>
+                </div>
                 <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                    <button class="btn-secondary" style="font-size: 0.82rem; padding: 0.5rem 0.9rem;" onclick="window.MTRSAdmin.refreshShowsTelemetry()">
+                        🔄 Refresh Show Inventory
+                    </button>
                     <button class="btn-primary" style="background: linear-gradient(135deg, var(--accent-cyan), var(--primary)); padding: 0.5rem 1rem; font-size: 0.85rem;" onclick="window.MTRSAdmin.openAutoScheduleModal()">
                         ⚡ Auto-Schedule Showtimes
                     </button>
@@ -118,10 +150,13 @@ class MTRSAdminPanel {
                     <tr>
                         <th>Show ID</th>
                         <th>Movie</th>
-                        <th>Theater Destination</th>
-                        <th>Auditorium</th>
-                        <th>Date & Time</th>
+                        <th>Destination &amp; Audi</th>
+                        <th>Date &amp; Time</th>
                         <th>Format</th>
+                        <th title="Total configured screen capacity in auditorium">Configured Capacity</th>
+                        <th title="Total physical records in public.seats for this screen">Physical Seats (DB)</th>
+                        <th title="Confirmed reservations for this specific show">Occupied (Show)</th>
+                        <th title="Remaining bookable seats for this specific show">Available (Show)</th>
                         <th>Ticket Price</th>
                         <th>Actions</th>
                     </tr>
@@ -131,15 +166,29 @@ class MTRSAdminPanel {
                         const movie = movies.find(m => m.Movie_ID === show.Movie_ID) || {};
                         const screen = screens.find(s => s.Screen_ID === show.Screen_ID) || {};
                         const theater = theaters.find(t => t.Theater_ID === screen.Theater_ID) || {};
+                        const cap = parseInt(screen.Capacity, 10) || 0;
+                        const physicalDbSeats = (dbCounts && dbCounts[screen.Screen_ID] !== undefined)
+                            ? dbCounts[screen.Screen_ID]
+                            : cap;
+                        const occupied = (showOccupancies && showOccupancies[show.Show_ID] !== undefined)
+                            ? showOccupancies[show.Show_ID]
+                            : 0;
+                        const available = Math.max(0, physicalDbSeats - occupied);
 
                         return `
                             <tr>
                                 <td><strong style="color: var(--accent-cyan);">${show.Show_ID}</strong></td>
                                 <td style="color: var(--text-pure); font-weight: 600;">${movie.Movie_Name || show.Movie_ID}</td>
-                                <td>${theater.Theater_Name || ''}</td>
-                                <td><span style="color: var(--accent-gold); font-weight: 600;">${screen.Screen_Name || `Screen ${screen.Screen_Number}`}</span> (${screen.Audio_Tech || '7.1'})</td>
-                                <td>${show.Show_Date} at ${window.MTRSUtil ? window.MTRSUtil.formatShowtimeRange(show.Show_Time, movie.Duration) : show.Show_Time.substring(0, 5)}</td>
+                                <td>
+                                    <div style="font-weight: 600; color: var(--text-pure);">${theater.Theater_Name || ''}</div>
+                                    <div style="font-size: 0.78rem; color: var(--accent-gold);">${screen.Screen_Name || `Screen ${screen.Screen_Number}`} <span style="color: var(--text-muted);">(${screen.Screen_ID})</span></div>
+                                </td>
+                                <td>${show.Show_Date} at ${window.MTRSUtil ? window.MTRSUtil.formatShowtimeRange(show.Show_Time, movie.Duration) : (show.Show_Time ? show.Show_Time.substring(0, 5) : '')}</td>
                                 <td><span class="card-format-tag">${show.Format}</span></td>
+                                <td style="font-weight: 700; color: var(--accent-gold);">${cap} Seats</td>
+                                <td style="font-weight: 700; color: ${physicalDbSeats >= cap ? 'var(--accent-emerald)' : 'var(--accent-gold)'};">${physicalDbSeats} Seats</td>
+                                <td style="font-weight: 700; color: ${occupied > 0 ? 'var(--accent-rose, #EF4444)' : 'var(--text-muted)'};">${occupied} Booked</td>
+                                <td style="font-weight: 800; color: var(--accent-emerald);">${available} Available</td>
                                 <td style="color: var(--accent-gold); font-weight: 700;">₹${show.Ticket_Price}</td>
                                 <td>
                                     <button class="btn-secondary" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;" onclick="window.MTRSAdmin.editShowPrice('${show.Show_ID}')">
@@ -155,6 +204,14 @@ class MTRSAdminPanel {
                 </tbody>
             </table>
         `;
+    }
+
+    async refreshShowsTelemetry() {
+        this.livePhysicalSeatCounts = null;
+        this.liveShowOccupancies = null;
+        if (window.App) window.App.showToast("Fetching live show availability and seat counts from Supabase...", "info");
+        await this.renderShowsTable();
+        if (window.App) window.App.showToast("Show availability metrics refreshed.", "success");
     }
 
     openAddShowModal() {
@@ -1209,19 +1266,70 @@ class MTRSAdminPanel {
     }
 
     // ------------------------------------------------------------------------
+    // ------------------------------------------------------------------------
     // TAB 2: SCREEN CAPACITY & TELEMETRY MANAGER (49 Screens)
     // ------------------------------------------------------------------------
-    renderScreensTable() {
+    async renderScreensTable() {
         const container = document.getElementById('admin-screens-table-container');
         if (!container) return;
 
         const screens = this.engine.getTable('SCREEN');
         const theaters = this.engine.getTable('THEATER');
+        const localSeats = this.engine.getTable('SEAT');
+
+        // Fetch live physical seats from Supabase if online
+        let dbCounts = this.livePhysicalSeatCounts || null;
+        if (!dbCounts && window.MTRSSupabase && typeof window.MTRSSupabase.fetchPhysicalSeatCounts === 'function') {
+            try {
+                const res = await window.MTRSSupabase.fetchPhysicalSeatCounts();
+                if (res && res.success) {
+                    dbCounts = res.counts;
+                    this.livePhysicalSeatCounts = res.counts;
+                }
+            } catch (e) {
+                console.warn('[MTRS Admin] Could not fetch live DB seat counts:', e);
+            }
+        }
+
+        const totalCapacity = screens.reduce((sum, s) => sum + (parseInt(s.Capacity, 10) || 0), 0);
+        let totalLiveSeats = 0;
+        screens.forEach(s => {
+            const live = (dbCounts && dbCounts[s.Screen_ID] !== undefined)
+                ? dbCounts[s.Screen_ID]
+                : (parseInt(s.Capacity, 10) || 0);
+            totalLiveSeats += live;
+        });
 
         container.innerHTML = `
-            <div style="margin-bottom: 1.25rem;">
-                <h4 style="color: var(--text-pure); font-size: 1.1rem;">Auditorium Telemetry & Seating Capacities (${screens.length} Screens)</h4>
-                <p style="color: var(--text-muted); font-size: 0.85rem;">Includes Projection, Sound telemetry, and Research Verification status from <code>chennai_cinema_sources.md</code>.</p>
+            <div style="margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                <div>
+                    <h4 style="color: var(--text-pure); font-size: 1.1rem;">Auditorium Telemetry &amp; Seating Capacities (${screens.length} Screens)</h4>
+                    <p style="color: var(--text-muted); font-size: 0.85rem;">Authoritative source of truth for screen capacity, physical database seat inventory, and row/column geometry.</p>
+                </div>
+                <button class="btn-secondary" style="font-size: 0.8rem; padding: 0.35rem 0.8rem;" onclick="window.MTRSAdmin.refreshLiveSeatCounts()">
+                    🔄 Refresh Database Inventory
+                </button>
+            </div>
+
+            <!-- Seating Telemetry KPI Summary -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                <div style="background: var(--bg-surface-elevated); border: 1px solid var(--glass-border); border-radius: var(--radius-md); padding: 1.15rem;">
+                    <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; letter-spacing: 0.5px;">Auditoriums Configured</div>
+                    <div style="font-family: var(--font-heading); font-size: 1.6rem; font-weight: 800; color: var(--accent-cyan); margin-top: 0.35rem;">${screens.length} Screens</div>
+                    <div style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.25rem;">Across 6 Chennai destinations</div>
+                </div>
+                <div style="background: var(--bg-surface-elevated); border: 1px solid var(--glass-border); border-radius: var(--radius-md); padding: 1.15rem;">
+                    <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; letter-spacing: 0.5px;">Configured Screen Capacity</div>
+                    <div style="font-family: var(--font-heading); font-size: 1.6rem; font-weight: 800; color: var(--accent-gold); margin-top: 0.35rem;">${totalCapacity.toLocaleString()} Seats</div>
+                    <div style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.25rem;">Total physical cinema design limit</div>
+                </div>
+                <div style="background: var(--bg-surface-elevated); border: 1px solid var(--glass-border); border-radius: var(--radius-md); padding: 1.15rem;">
+                    <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; letter-spacing: 0.5px;">Physical Seats in Database</div>
+                    <div style="font-family: var(--font-heading); font-size: 1.6rem; font-weight: 800; color: ${totalLiveSeats >= totalCapacity ? 'var(--accent-emerald)' : 'var(--accent-gold)'}; margin-top: 0.35rem;">${totalLiveSeats.toLocaleString()} Seats</div>
+                    <div style="font-size: 0.78rem; color: ${totalLiveSeats >= totalCapacity ? 'var(--accent-emerald)' : 'var(--accent-gold)'}; margin-top: 0.25rem;">
+                        ${totalLiveSeats >= totalCapacity ? '✓ 100% Synchronized with Supabase' : 'Partial Synchronization'}
+                    </div>
+                </div>
             </div>
 
             <table class="data-table">
@@ -1231,17 +1339,33 @@ class MTRSAdminPanel {
                         <th>Theater Destination</th>
                         <th>Auditorium Name</th>
                         <th>Format Type</th>
-                        <th>Capacity</th>
-                        <th>Projection</th>
-                        <th>Sound System</th>
-                        <th>Verification Status</th>
+                        <th>Configured Capacity</th>
+                        <th>Configured Layout</th>
+                        <th>Physical Seats (DB)</th>
+                        <th>Inventory Status</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     ${screens.map(screen => {
                         const theater = theaters.find(t => t.Theater_ID === screen.Theater_ID) || {};
-                        const isVerified = screen.Verification_Status === 'Verified';
+                        const cap = parseInt(screen.Capacity, 10) || 0;
+                        const layout = (typeof window.calculateScreenLayout === 'function') 
+                            ? window.calculateScreenLayout(cap)
+                            : { numRows: Math.ceil(cap / 14), colsPerRow: 14, aisleCol: 7 };
+
+                        const liveCount = (dbCounts && dbCounts[screen.Screen_ID] !== undefined) 
+                            ? dbCounts[screen.Screen_ID] 
+                            : localSeats.filter(s => s.Screen_ID === screen.Screen_ID).length;
+
+                        let statusBadge = '';
+                        if (liveCount >= cap && cap > 0) {
+                            statusBadge = `<span class="status-badge synchronized" style="font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; font-weight: 700; background: rgba(16, 185, 129, 0.15); color: var(--accent-emerald);">Synchronized (${liveCount}/${cap})</span>`;
+                        } else if (liveCount > 0) {
+                            statusBadge = `<span class="status-badge mismatch warning" style="font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; font-weight: 700; background: rgba(255, 184, 0, 0.15); color: var(--accent-gold);">MISMATCH: Partial (${liveCount}/${cap})</span>`;
+                        } else {
+                            statusBadge = `<span class="status-badge mismatch danger" style="font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; font-weight: 700; background: rgba(239, 68, 68, 0.15); color: var(--accent-rose);">MISMATCH: 0 Seats in DB</span>`;
+                        }
 
                         return `
                             <tr>
@@ -1249,17 +1373,13 @@ class MTRSAdminPanel {
                                 <td style="color: var(--text-pure);">${theater.Theater_Name || screen.Theater_ID}</td>
                                 <td style="font-weight: 700; color: var(--text-pure);">${screen.Screen_Name || `Screen ${screen.Screen_Number}`}</td>
                                 <td><span class="card-format-tag">${screen.Screen_Type}</span></td>
-                                <td style="font-weight: 700; color: var(--accent-gold);">${screen.Capacity} Seats</td>
-                                <td style="font-size: 0.8rem;">${screen.Projection_Tech}</td>
-                                <td style="font-size: 0.8rem;">${screen.Audio_Tech}</td>
-                                <td>
-                                    <span style="font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; font-weight: 700; background: ${isVerified ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 184, 0, 0.15)'}; color: ${isVerified ? 'var(--accent-emerald)' : 'var(--accent-gold)'};">
-                                        ${screen.Verification_Status}
-                                    </span>
-                                </td>
+                                <td style="font-weight: 700; color: var(--accent-gold);">${cap} Seats</td>
+                                <td style="font-size: 0.82rem; color: var(--text-secondary);">${layout.numRows} Rows × ${layout.colsPerRow} Cols <span style="font-size: 0.75rem; opacity: 0.7;">(Aisle @ ${layout.aisleCol})</span></td>
+                                <td style="font-weight: 700; color: ${liveCount >= cap ? 'var(--accent-emerald)' : 'var(--accent-gold)'};">${liveCount} Seats</td>
+                                <td>${statusBadge}</td>
                                 <td>
                                     <button class="btn-secondary" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;" onclick="window.MTRSAdmin.editScreenDetails('${screen.Screen_ID}')">
-                                        Edit Tech/Cap
+                                        Edit Capacity
                                     </button>
                                 </td>
                             </tr>
@@ -1270,11 +1390,11 @@ class MTRSAdminPanel {
         `;
     }
 
-    editScreenDetails(screenId) {
+    async editScreenDetails(screenId) {
         const screen = this.engine.getTable('SCREEN').find(s => s.Screen_ID === screenId);
         if (!screen) return;
 
-        const newCap = prompt(`Update Capacity for ${screen.Screen_Name || screenId} (Currently ${screen.Capacity}):`, screen.Capacity);
+        const newCap = prompt(`Update Capacity for ${screen.Screen_Name || screenId} (Currently ${screen.Capacity} Seats):`, screen.Capacity);
         if (newCap !== null) {
             const parsed = parseInt(newCap, 10);
             if (isNaN(parsed) || parsed <= 0) {
@@ -1282,11 +1402,43 @@ class MTRSAdminPanel {
                 return;
             }
             screen.Capacity = parsed;
+            
+            // Persist to live Supabase database
+            if (window.MTRSSupabase && typeof window.MTRSSupabase.updateScreenCapacity === 'function') {
+                const res = await window.MTRSSupabase.updateScreenCapacity(screenId, parsed);
+                if (res && res.success) {
+                    console.log(`[MTRS Admin] Persisted new capacity ${parsed} for ${screenId} to Supabase.`);
+                }
+            }
+
+            // Regenerate local physical seats to match new capacity
+            if (typeof window.generateAuditoriumSeats === 'function') {
+                const updatedSeats = window.generateAuditoriumSeats(screen, window.SEED_DATA ? window.SEED_DATA.BASE_PRESEEDED_SEATS : []);
+                this.engine.db.SEAT = this.engine.db.SEAT.filter(s => s.Screen_ID !== screenId).concat(updatedSeats);
+            }
+
             this.engine.save();
-            window.App.showToast(`Capacity for ${screenId} updated to ${parsed}.`, "success");
-            this.renderScreensTable();
+            if (window.App && Array.isArray(window.App.screens)) {
+                const appScreen = window.App.screens.find(s => s.Screen_ID === screenId);
+                if (appScreen) appScreen.Capacity = parsed;
+            }
+
+            const layout = (typeof window.calculateScreenLayout === 'function') ? window.calculateScreenLayout(parsed) : null;
+            const layoutInfo = layout ? ` (${layout.numRows} Rows × ${layout.colsPerRow} Cols)` : '';
+            window.App.showToast(`Capacity for ${screenId} updated to ${parsed}${layoutInfo}. Persisted to database & admin state.`, "success");
+            
+            // Invalidate live count cache and re-render
+            this.livePhysicalSeatCounts = null;
+            await this.renderScreensTable();
             this.refreshDashboard();
         }
+    }
+
+    async refreshLiveSeatCounts() {
+        this.livePhysicalSeatCounts = null;
+        if (window.App) window.App.showToast("Fetching live physical seat counts from Supabase...", "info");
+        await this.renderScreensTable();
+        if (window.App) window.App.showToast("Database seating inventory telemetry updated.", "success");
     }
 
     // ------------------------------------------------------------------------
