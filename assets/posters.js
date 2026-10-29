@@ -21,7 +21,8 @@
             year: 2025,
             tmdbId: 1061474,
             director: 'James Gunn',
-            customPoster: '', // Set path in assets/custom-posters/ if overriding
+            customPoster: '',   // Portrait override (e.g., 'assets/custom-posters/superman.jpg')
+            customBackdrop: '', // Landscape hero override (e.g., 'assets/backdrops/superman-hero.jpg')
             posterUrl: 'https://image.tmdb.org/t/p/w500/ldyfo0BKmz5rWtJJKCvwaNS4cJT.jpg',
             posterHiRes: 'https://image.tmdb.org/t/p/w780/ldyfo0BKmz5rWtJJKCvwaNS4cJT.jpg',
             backdropUrl: 'https://image.tmdb.org/t/p/w1280/eGX66zonvc4bXg3rM08RUxdYSDx.jpg',
@@ -58,6 +59,7 @@
             tmdbId: 949,
             director: 'Michael Mann',
             customPoster: '',
+            customBackdrop: '',
             posterUrl: 'https://a.ltrbxd.com/resized/film-poster/5/1/9/9/4/51994-heat-0-2000-0-3000-crop.jpg?v=54dce97dc6',
             posterHiRes: 'https://a.ltrbxd.com/resized/film-poster/5/1/9/9/4/51994-heat-0-2000-0-3000-crop.jpg?v=54dce97dc6',
             backdropUrl: 'https://image.tmdb.org/t/p/w1280/eSVvx8xys2NuFhl8fevXt41wX7v.jpg',
@@ -94,9 +96,10 @@
             tmdbId: 313369,
             director: 'Damien Chazelle',
             customPoster: '',
+            customBackdrop: '',
             posterUrl: 'https://image.tmdb.org/t/p/w500/uDO8zWDhfWwoFdKS4fzkUJt0Rf0.jpg',
             posterHiRes: 'https://image.tmdb.org/t/p/w780/uDO8zWDhfWwoFdKS4fzkUJt0Rf0.jpg',
-            backdropUrl: 'https://image.tmdb.org/t/p/w1280/nadTlnTE6DdgmYsN4iWc2a2wiaI.jpg',
+            backdropUrl: 'https://image.tmdb.org/t/p/w1280/nlPCdZlHtRNcF6C9hzUH4ebmV1w.jpg',
             sourcePage: 'https://www.themoviedb.org/movie/313369-la-la-land',
             attribution: 'TMDb / Summit Entertainment / Lionsgate',
             verificationStatus: 'Verified',
@@ -121,6 +124,7 @@
             year: 2026,
             director: 'Christopher Nolan',
             customPoster: 'assets/custom-posters/the-odyssey-2026.svg',
+            customBackdrop: '',
             posterUrl: 'https://upload.wikimedia.org/wikipedia/en/9/90/The_Odyssey_%282026_film%29_poster.jpg',
             posterHiRes: 'https://image.tmdb.org/t/p/w780/gEU2QniE6E77NI6lCU6MxlWBvIx.jpg', // Interstellar alternate verified CDN
             backdropUrl: 'https://image.tmdb.org/t/p/w1280/rAiYTfKGqDCRIIqo664sY9XZIvQ.jpg', // Epic 70mm Nolan space backdrop
@@ -153,9 +157,10 @@
             tmdbId: 693134,
             director: 'Denis Villeneuve',
             customPoster: '',
+            customBackdrop: '',
             posterUrl: 'https://a.ltrbxd.com/resized/film-poster/1/0/5/7/4/6/1/1057461-dune-part-three-0-2000-0-3000-crop.jpg?v=f577c5b9e7',
             posterHiRes: 'https://a.ltrbxd.com/resized/film-poster/1/0/5/7/4/6/1/1057461-dune-part-three-0-2000-0-3000-crop.jpg?v=f577c5b9e7',
-            backdropUrl: 'https://image.tmdb.org/t/p/w1280/xOMo8BRK7PfcJv9JCnx7s520QIq.jpg',
+            backdropUrl: 'https://image.tmdb.org/t/p/w1280/eZ239CUp1d6OryZEBPnO2n87gMG.jpg',
             sourcePage: 'https://letterboxd.com/film/dune-part-three/',
             attribution: 'Letterboxd / Legendary Pictures / Warner Bros.',
             verificationStatus: 'Verified',
@@ -183,9 +188,10 @@
             tmdbId: 1003596,
             director: 'Anthony & Joe Russo',
             customPoster: '',
+            customBackdrop: '',
             posterUrl: 'https://a.ltrbxd.com/resized/film-poster/9/0/3/8/8/9/903889-avengers-doomsday-0-2000-0-3000-crop.jpg?v=fbbc8d1f4f',
             posterHiRes: 'https://a.ltrbxd.com/resized/film-poster/9/0/3/8/8/9/903889-avengers-doomsday-0-2000-0-3000-crop.jpg?v=fbbc8d1f4f',
-            backdropUrl: 'https://image.tmdb.org/t/p/w1280/xOMo8BRK7PfcJv9JCnx7s520QIq.jpg',
+            backdropUrl: 'https://image.tmdb.org/t/p/w1280/rObL4of4eFA8yWaN9pRFo9aOVNi.jpg',
             sourcePage: 'https://letterboxd.com/film/avengers-doomsday/',
             attribution: 'Letterboxd / Marvel Studios / Walt Disney Studios',
             verificationStatus: 'Verified',
@@ -206,12 +212,10 @@
     };
 
     // ------------------------------------------------------------------------
-    // CENTRAL POSTER RESOLUTION ENGINE
-    // Priority:
-    // 1. Explicit Custom Poster assigned to movie (assets/custom-posters/)
-    // 2. Explicit movie.Poster_URL from upload / database
-    // 3. Verified Official TMDb CDN URL
-    // 4. Bundled high-res Vector SVG Fallback
+    // CENTRAL POSTER & CINEMATIC BACKDROP RESOLUTION ENGINE
+    // Independent pipelines for:
+    // 1. Posters (portrait, catalogue cards)
+    // 2. Backdrops (landscape, cinematic hero background)
     // ------------------------------------------------------------------------
     class PosterManager {
         constructor() {
@@ -224,10 +228,11 @@
             try {
                 const stored = localStorage.getItem('MTRS_POSTER_OVERRIDES');
                 if (stored) {
-                    this.customOverrides = JSON.parse(stored);
+                    this.customOverrides = JSON.parse(stored) || {};
                 }
             } catch (e) {
                 console.warn('Failed to load custom poster overrides:', e);
+                this.customOverrides = {};
             }
         }
 
@@ -240,20 +245,20 @@
         }
 
         /**
-         * Resolves the record by movie object or identifier
+         * Resolves the registry record by movie object or identifier (supports title fuzzy search)
          */
         findRecord(movieOrId) {
             if (!movieOrId) return null;
-            const id = typeof movieOrId === 'string' ? movieOrId : movieOrId.Movie_ID;
-            if (this.registry[id]) return this.registry[id];
+            const id = typeof movieOrId === 'string' ? movieOrId : (movieOrId.Movie_ID || movieOrId.movie_id);
+            if (id && this.registry[id]) return this.registry[id];
 
             // Title-based fuzzy fallback if ID does not match directly
-            const queryName = typeof movieOrId === 'string' ? movieOrId : (movieOrId.Movie_Name || '');
+            const queryName = typeof movieOrId === 'string' ? movieOrId : (movieOrId.Movie_Name || movieOrId.movie_name || '');
             if (queryName) {
                 const cleanName = queryName.toLowerCase().trim();
                 for (const key of Object.keys(this.registry)) {
                     const rec = this.registry[key];
-                    if (rec.title.toLowerCase() === cleanName) return rec;
+                    if (rec.title && rec.title.toLowerCase() === cleanName) return rec;
                     if (rec.alternateTitles && rec.alternateTitles.some(t => t.toLowerCase() === cleanName)) {
                         return rec;
                     }
@@ -263,12 +268,170 @@
         }
 
         /**
-         * Resolves best poster URL or resource
+         * Extracts normalized { poster: string|null, backdrop: string|null } overrides
+         * with seamless backward compatibility for legacy string values and key prefixes.
+         */
+        getCustomOverrides(movieOrId) {
+            const movieId = typeof movieOrId === 'string' ? movieOrId : (movieOrId ? (movieOrId.Movie_ID || movieOrId.movie_id) : '');
+            let poster = null;
+            let backdrop = null;
+
+            if (movieId && this.customOverrides) {
+                const entry = this.customOverrides[movieId];
+                if (typeof entry === 'string' && entry.trim() !== '') {
+                    // Backward-compatible: older releases stored a single string which was always the poster override
+                    poster = entry.trim();
+                } else if (entry && typeof entry === 'object') {
+                    if (typeof entry.poster === 'string' && entry.poster.trim() !== '') {
+                        poster = entry.poster.trim();
+                    }
+                    if (typeof entry.backdrop === 'string' && entry.backdrop.trim() !== '') {
+                        backdrop = entry.backdrop.trim();
+                    }
+                }
+
+                // Check flat key variants if present
+                if (!poster && this.customOverrides[`poster_${movieId}`]) {
+                    poster = String(this.customOverrides[`poster_${movieId}`]).trim();
+                }
+                if (!backdrop && this.customOverrides[`backdrop_${movieId}`]) {
+                    backdrop = String(this.customOverrides[`backdrop_${movieId}`]).trim();
+                }
+            }
+
+            // Fallback to static POSTER_REGISTRY custom fields if not set in localStorage
+            const rec = this.findRecord(movieOrId);
+            if (!poster && rec && rec.customPoster && typeof rec.customPoster === 'string' && rec.customPoster.trim() !== '') {
+                poster = rec.customPoster.trim();
+            }
+            if (!backdrop && rec && rec.customBackdrop && typeof rec.customBackdrop === 'string' && rec.customBackdrop.trim() !== '') {
+                backdrop = rec.customBackdrop.trim();
+            }
+
+            // Check custom properties on the movie object if provided
+            if (typeof movieOrId === 'object' && movieOrId) {
+                const candPoster = movieOrId.Custom_Poster_URL || movieOrId.Custom_Poster_Url || movieOrId.custom_poster_url;
+                if (!poster && candPoster && typeof candPoster === 'string' && candPoster.trim() !== '') {
+                    poster = candPoster.trim();
+                }
+                const candBackdrop = movieOrId.Custom_Backdrop_URL || movieOrId.Custom_Backdrop_Url || movieOrId.custom_backdrop_url;
+                if (!backdrop && candBackdrop && typeof candBackdrop === 'string' && candBackdrop.trim() !== '') {
+                    backdrop = candBackdrop.trim();
+                }
+            }
+
+            return { poster, backdrop };
+        }
+
+        /**
+         * Resolves only custom poster override (null if none configured)
+         */
+        getCustomPoster(movieOrId) {
+            return this.getCustomOverrides(movieOrId).poster;
+        }
+
+        /**
+         * Resolves only custom backdrop override (null if none configured)
+         */
+        getCustomBackdrop(movieOrId) {
+            return this.getCustomOverrides(movieOrId).backdrop;
+        }
+
+        /**
+         * Sets or clears a custom poster override without touching the backdrop
+         */
+        setCustomPoster(movieId, customPath) {
+            if (!movieId) return;
+            const id = String(movieId).trim();
+            const currentBackdrop = this.getCustomBackdrop(id);
+            const cleanPoster = (customPath && typeof customPath === 'string') ? customPath.trim() : '';
+
+            if (cleanPoster) {
+                if (currentBackdrop) {
+                    this.customOverrides[id] = { poster: cleanPoster, backdrop: currentBackdrop };
+                } else {
+                    // Backward-compatible string format if only poster is set
+                    this.customOverrides[id] = cleanPoster;
+                }
+            } else {
+                if (currentBackdrop) {
+                    this.customOverrides[id] = { poster: null, backdrop: currentBackdrop };
+                } else {
+                    delete this.customOverrides[id];
+                }
+            }
+
+            delete this.customOverrides[`poster_${id}`];
+            this.saveOverrides();
+        }
+
+        /**
+         * Sets or clears a custom backdrop override without touching the poster
+         */
+        setCustomBackdrop(movieId, customPath) {
+            if (!movieId) return;
+            const id = String(movieId).trim();
+            const currentPoster = this.getCustomPoster(id);
+            const cleanBackdrop = (customPath && typeof customPath === 'string') ? customPath.trim() : '';
+
+            if (cleanBackdrop) {
+                this.customOverrides[id] = {
+                    poster: currentPoster || null,
+                    backdrop: cleanBackdrop
+                };
+            } else {
+                if (currentPoster) {
+                    this.customOverrides[id] = currentPoster;
+                } else {
+                    delete this.customOverrides[id];
+                }
+            }
+
+            delete this.customOverrides[`backdrop_${id}`];
+            this.saveOverrides();
+        }
+
+        /**
+         * Programmatically set poster and/or backdrop overrides simultaneously
+         */
+        setMovieOverrides(movieId, overrides = {}) {
+            if (!movieId) return;
+            const id = String(movieId).trim();
+            const current = this.getCustomOverrides(id);
+
+            const newPoster = (overrides.poster !== undefined) ?
+                (overrides.poster ? String(overrides.poster).trim() : null) : current.poster;
+            const newBackdrop = (overrides.backdrop !== undefined) ?
+                (overrides.backdrop ? String(overrides.backdrop).trim() : null) : current.backdrop;
+
+            if (newPoster && newBackdrop) {
+                this.customOverrides[id] = { poster: newPoster, backdrop: newBackdrop };
+            } else if (newBackdrop) {
+                this.customOverrides[id] = { poster: null, backdrop: newBackdrop };
+            } else if (newPoster) {
+                this.customOverrides[id] = newPoster;
+            } else {
+                delete this.customOverrides[id];
+            }
+
+            delete this.customOverrides[`poster_${id}`];
+            delete this.customOverrides[`backdrop_${id}`];
+            this.saveOverrides();
+        }
+
+        /**
+         * Resolves portrait poster URL for catalogue cards & detail modals
+         * Priority:
+         * 1. Uploaded poster (IndexedDB MTRSImageStore)
+         * 2. Custom poster override (localStorage or registry customPoster)
+         * 3. Explicit movie object poster URL (Supabase or database record)
+         * 4. Verified official TMDb CDN poster (prefer high-res)
+         * 5. Null (falls back to SVG in renderPosterHtml)
          */
         resolvePoster(movieOrId, options = {}) {
-            const size = options.size || 'w780'; // Default to high resolution to avoid low-res thumbnail artifacts
+            const size = options.size || 'w780';
             const rec = this.findRecord(movieOrId);
-            const movieId = typeof movieOrId === 'string' ? movieOrId : (movieOrId ? movieOrId.Movie_ID : '');
+            const movieId = typeof movieOrId === 'string' ? movieOrId : (movieOrId ? (movieOrId.Movie_ID || movieOrId.movie_id) : '');
 
             // Priority 1: Uploaded poster associated with the movie (IndexedDB persistent store)
             if (movieId && window.MTRSImageStore && typeof window.MTRSImageStore.getPosterUrl === 'function') {
@@ -276,58 +439,109 @@
                 if (uploadedUrl) return uploadedUrl;
             }
 
-            // Priority 2: Custom poster URL configured by administrator
+            // Priority 2: Custom poster override (strictly poster, never backdrop)
+            const customPoster = this.getCustomPoster(movieOrId);
+            if (customPoster) {
+                return customPoster;
+            }
+
+            // Priority 3: Explicit poster URL from database or movie object
             if (typeof movieOrId === 'object' && movieOrId) {
-                const cand = movieOrId.Poster_Url || movieOrId.Poster_URL || movieOrId.Custom_Poster_URL || movieOrId.Custom_Poster_Url || movieOrId.posterUrl;
+                const cand = movieOrId.Poster_Url || movieOrId.Poster_URL || movieOrId.poster_url;
                 if (cand && typeof cand === 'string' && cand.trim() !== '') {
                     return cand.trim();
                 }
             }
-            if (movieId && this.customOverrides[movieId]) {
-                return this.customOverrides[movieId];
-            }
-            if (typeof movieOrId === 'string' && window.MTRSEngine) {
+            if (movieId && window.MTRSEngine) {
                 try {
                     const dbMovie = window.MTRSEngine.getTable('MOVIE').find(m => m.Movie_ID === movieId);
                     if (dbMovie) {
-                        const cand = dbMovie.Poster_Url || dbMovie.Poster_URL || dbMovie.Custom_Poster_URL || dbMovie.Custom_Poster_Url || dbMovie.posterUrl;
+                        const cand = dbMovie.Poster_Url || dbMovie.Poster_URL || dbMovie.poster_url;
                         if (cand && typeof cand === 'string' && cand.trim() !== '') {
                             return cand.trim();
                         }
                     }
-                } catch (e) {}
-            }
-            if (rec && rec.customPoster && rec.customPoster.trim() !== '') {
-                return rec.customPoster;
+                } catch (e) { }
             }
 
-            // Priority 3: Existing verified poster registry entry (prefer high-res over compressed 500px thumbnails)
+            // Priority 4: Existing verified poster registry entry
             if (rec) {
                 if (size === 'w780' && rec.posterHiRes) return rec.posterHiRes;
                 if (rec.posterHiRes) return rec.posterHiRes;
                 if (rec.posterUrl) return rec.posterUrl;
             }
 
-            // Priority 4: Existing fallback artwork handled by caller renderPosterHtml
             return null;
         }
 
         /**
          * Resolves widescreen backdrop URL for Hero section
+         * Priority:
+         * 1. A custom backdrop override, if configured (localStorage or registry customBackdrop)
+         * 2. An existing backdrop URL from the movie's data, if available (Supabase or registry)
+         * 3. A suitable existing image fallback, without stretching or distorting a portrait poster
          */
         resolveBackdrop(movieOrId, options = {}) {
             const size = options.size || 'w1280';
             const rec = this.findRecord(movieOrId);
+            const movieId = typeof movieOrId === 'string' ? movieOrId : (movieOrId ? (movieOrId.Movie_ID || movieOrId.movie_id) : '');
 
-            if (rec && rec.backdropUrl) {
+            // Priority 1: Uploaded backdrop from IndexedDB persistent store (highest custom priority)
+            if (movieId && window.MTRSImageStore && typeof window.MTRSImageStore.getBackdropUrl === 'function') {
+                const uploadedUrl = window.MTRSImageStore.getBackdropUrl(movieId);
+                if (uploadedUrl) return uploadedUrl;
+            }
+
+            // Priority 2: Custom backdrop override, if configured (strictly backdrop, never custom poster)
+            const customBackdrop = this.getCustomBackdrop(movieOrId);
+            if (customBackdrop) {
+                return customBackdrop;
+            }
+
+            // Priority 2: Existing backdrop URL from movie data
+            // (a) From live movie object (e.g., Supabase query)
+            if (typeof movieOrId === 'object' && movieOrId) {
+                const cand = movieOrId.Backdrop_Url || movieOrId.backdrop_url || movieOrId.Backdrop_URL;
+                if (cand && typeof cand === 'string' && cand.trim() !== '') {
+                    return cand.trim();
+                }
+            }
+            // (b) From verified official registry backdrop
+            if (rec && rec.backdropUrl && typeof rec.backdropUrl === 'string' && rec.backdropUrl.trim() !== '') {
                 if (size === 'original') {
                     return rec.backdropUrl.replace('/w1280/', '/original/');
                 }
-                return rec.backdropUrl;
+                return rec.backdropUrl.trim();
+            }
+            // (c) From in-memory database if present
+            if (movieId && window.MTRSEngine) {
+                try {
+                    const dbMovie = window.MTRSEngine.getTable('MOVIE').find(m => m.Movie_ID === movieId);
+                    if (dbMovie) {
+                        const cand = dbMovie.Backdrop_Url || dbMovie.backdrop_url || dbMovie.Backdrop_URL;
+                        if (cand && typeof cand === 'string' && cand.trim() !== '') {
+                            return cand.trim();
+                        }
+                    }
+                } catch (e) { }
             }
 
-            // Fallback to high-res poster if no backdrop exists
-            return this.resolvePoster(movieOrId, { size: 'w780' });
+            // Priority 3: A suitable existing image fallback, without stretching or distorting
+            if (rec && rec.fallbackBackdropSvg) {
+                return rec.fallbackBackdropSvg;
+            }
+            // High-resolution poster URL formatted for CSS background-size: cover (preserves aspect ratio)
+            if (rec && rec.posterHiRes) {
+                return rec.posterHiRes;
+            }
+            if (typeof movieOrId === 'object' && movieOrId && (movieOrId.Poster_Hires_Url || movieOrId.Poster_Url)) {
+                return (movieOrId.Poster_Hires_Url || movieOrId.Poster_Url).trim();
+            }
+
+            // Dynamic 16:9 widescreen SVG backdrop data URI
+            const movieTitle = (typeof movieOrId === 'object' && (movieOrId.Movie_Name || movieOrId.movie_name)) ?
+                (movieOrId.Movie_Name || movieOrId.movie_name) : (rec ? rec.title : 'Featured Movie');
+            return this.generateDynamicBackdropSvg(movieTitle);
         }
 
         /**
@@ -336,8 +550,8 @@
         renderPosterHtml(movieOrId, className = 'movie-poster-img', altText = '') {
             const rec = this.findRecord(movieOrId);
             const posterUrl = this.resolvePoster(movieOrId, { size: 'w780' });
-            const movieTitle = (typeof movieOrId === 'object' && movieOrId.Movie_Name) ? 
-                movieOrId.Movie_Name : (rec ? rec.title : 'Movie Poster');
+            const movieTitle = (typeof movieOrId === 'object' && (movieOrId.Movie_Name || movieOrId.movie_name)) ?
+                (movieOrId.Movie_Name || movieOrId.movie_name) : (rec ? rec.title : 'Movie Poster');
             const alt = altText || `${movieTitle} Theatrical Poster`;
             const fallbackSvg = rec ? rec.fallbackSvg : this.generateDynamicSvg(movieTitle);
 
@@ -362,10 +576,10 @@
         }
 
         /**
-         * Generates dynamic vector SVG when no registry or URL is available
+         * Generates dynamic vector SVG poster when no registry or URL is available
          */
         generateDynamicSvg(title = 'Now Screening') {
-            const cleanTitle = (title || 'Cinema').substring(0, 22);
+            const cleanTitle = (title || 'Cinema').substring(0, 22).replace(/[<>&"]/g, '');
             return `<svg viewBox="0 0 300 450" xmlns="http://www.w3.org/2000/svg" class="movie-svg-poster">
                 <defs>
                     <linearGradient id="dyn-grad" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -384,16 +598,36 @@
         }
 
         /**
-         * Sets or updates custom poster override
+         * Generates dynamic 16:9 widescreen SVG backdrop data URI for hero background
          */
-        setCustomPoster(movieId, customPath) {
-            if (!movieId) return;
-            if (customPath && customPath.trim() !== '') {
-                this.customOverrides[movieId] = customPath.trim();
-            } else {
-                delete this.customOverrides[movieId];
-            }
-            this.saveOverrides();
+        generateDynamicBackdropSvg(title = 'Featured Movie') {
+            const cleanTitle = (title || 'Cinema').substring(0, 32).replace(/[<>&"]/g, '');
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720">
+                <defs>
+                    <linearGradient id="dyn-bd-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#080b12"/>
+                        <stop offset="50%" stop-color="#0f172a"/>
+                        <stop offset="100%" stop-color="#04060a"/>
+                    </linearGradient>
+                    <radialGradient id="dyn-bd-glow" cx="60%" cy="40%" r="65%">
+                        <stop offset="0%" stop-color="rgba(0, 229, 255, 0.2)"/>
+                        <stop offset="50%" stop-color="rgba(229, 9, 20, 0.08)"/>
+                        <stop offset="100%" stop-color="transparent"/>
+                    </radialGradient>
+                    <pattern id="dyn-bd-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+                    </pattern>
+                </defs>
+                <rect width="1280" height="720" fill="url(#dyn-bd-bg)"/>
+                <rect width="1280" height="720" fill="url(#dyn-bd-grid)"/>
+                <rect width="1280" height="720" fill="url(#dyn-bd-glow)"/>
+                <circle cx="850" cy="340" r="160" fill="none" stroke="rgba(0, 229, 255, 0.15)" stroke-width="2"/>
+                <circle cx="850" cy="340" r="120" fill="none" stroke="rgba(229, 9, 20, 0.15)" stroke-width="2"/>
+                <line x1="0" y1="620" x2="1280" y2="620" stroke="rgba(0, 229, 255, 0.4)" stroke-width="2"/>
+                <text x="640" y="340" font-family="'Outfit', sans-serif" font-weight="900" font-size="44" fill="#FFFFFF" text-anchor="middle" letter-spacing="6">${cleanTitle}</text>
+                <text x="640" y="385" font-family="'Outfit', sans-serif" font-weight="600" font-size="14" fill="#00E5FF" text-anchor="middle" letter-spacing="6">CINEMATIC PREMIER • MTRS EXCLUSIVE</text>
+            </svg>`;
+            return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
         }
 
         getRegistry() {
@@ -404,6 +638,7 @@
     // Instantiate and expose globally
     const manager = new PosterManager();
     window.MTRSPosters = manager;
+    window.PosterManager = manager; // Dual alias
 
     // Backward-compatibility shim for older code calling window.MOVIE_POSTERS
     window.MOVIE_POSTERS = new Proxy({}, {

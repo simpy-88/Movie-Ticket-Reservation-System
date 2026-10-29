@@ -1,0 +1,21 @@
+<svg viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="grad-sky" cx="50%" cy="40%" r="70%">
+      <stop offset="0%" stop-color="#141E30"/>
+      <stop offset="50%" stop-color="#0F172A"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </radialGradient>
+    <linearGradient id="grad-glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E50914" stop-opacity="0.35"/>
+      <stop offset="50%" stop-color="#00E5FF" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="transparent"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#grad-sky)"/>
+  <rect width="1280" height="720" fill="url(#grad-glow)"/>
+  <circle cx="950" cy="320" r="260" fill="none" stroke="rgba(0, 229, 255, 0.15)" stroke-width="2"/>
+  <circle cx="950" cy="320" r="160" fill="none" stroke="rgba(229, 9, 20, 0.2)" stroke-width="2"/>
+  <path d="M 0 540 Q 320 480 640 520 T 1280 500 L 1280 720 L 0 720 Z" fill="rgba(8, 9, 16, 0.7)"/>
+  <text x="950" y="335" font-family="'Outfit', sans-serif" font-weight="900" font-size="28" fill="#FFFFFF" text-anchor="middle" letter-spacing="8" opacity="0.4">CINEMATIC PREVIEW</text>
+  <text x="950" y="370" font-family="'Outfit', sans-serif" font-weight="600" font-size="14" fill="#00E5FF" text-anchor="middle" letter-spacing="4" opacity="0.6">MTRS CHENNAI</text>
+</svg>

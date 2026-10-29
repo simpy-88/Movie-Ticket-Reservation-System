@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MTRS Chennai — Movie Ticket Reservation System | DBMS Project</title>
     <meta name="description" content="A comprehensive, normalized BCNF Movie Ticket Reservation System built for Database Management Systems, featuring 6 Chennai cinema destinations, 49 auditoriums, live seat booking, transaction rollback, and 18 academic SQL queries.">
-    
+
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    
+
     <!-- Stylesheets -->
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/seat-layout.css">
@@ -48,6 +48,11 @@
                 <span id="db-status-text">CONNECTING...</span>
             </div>
 
+            <button id="btn-open-artwork-manager" class="btn-secondary" style="padding: 0.4rem 0.85rem; font-size: 0.78rem; display: flex; align-items: center; gap: 0.45rem;" title="Manage and Upload Movie Posters & Hero Backdrops" onclick="window.MTRSArtworkManager.open()">
+                <span>🎨</span>
+                <span>Manage Artwork</span>
+            </button>
+
             <button id="btn-reset-db" class="btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.78rem;" title="Reset Relational Database to Chennai Seed Data">
                 🔄 Reset DB
             </button>
@@ -64,37 +69,67 @@
          VIEW 1: HOME / MOVIE BROWSER VIEW
          ==================================================================== -->
     <main id="view-home" class="main-container">
-        <!-- Hero Showcase -->
-        <section class="hero-section">
-            <div class="hero-card">
-                <div>
-                    <span class="hero-badge">⚡ Now Screening Across 6 Chennai Destinations</span>
-                    <h1 class="hero-title">SUPERMAN</h1>
-                    <div class="hero-meta">
-                        <span class="meta-rating">★ 8.6/10</span>
-                        <span class="meta-pill">Action / Sci-Fi</span>
-                        <span class="meta-pill">English</span>
-                        <span class="meta-pill">2h 30m</span>
-                        <span class="meta-pill" style="border-color: var(--accent-cyan); color: var(--accent-cyan);">IMAX Laser</span>
-                        <span class="meta-pill" style="border-color: var(--accent-gold); color: var(--accent-gold);">P[XL] / BIGPIX</span>
-                    </div>
-                    <p class="hero-synopsis">
-                        Experience the epic blockbuster at Chennai's premier destinations: Palazzo IMAX, INOX Luxe Phoenix, VR Chennai P[XL], and Sathyam Main Hall with uncompressed Dolby Atmos and Laser projection.
-                    </p>
-                    <div class="hero-actions">
-                        <button class="btn-primary" id="btn-hero-book">
-                            🎟️ Book Tickets Now
-                        </button>
-                        <button class="btn-secondary" onclick="window.App.switchView('sql-sandbox')">
-                            📊 View 18 SQL Queries
-                        </button>
-                    </div>
-                </div>
+        <!-- Netflix-Style Cinematic Hero Slideshow (Featured Movies) -->
+        <section class="hero-section cinematic-hero" id="hero-slideshow" aria-roledescription="carousel" aria-label="Featured Chennai Theatrical Releases" role="region" tabindex="0">
+            <!-- Dual Backdrop Layers for Seamless Cinematic Fade Transitions -->
+            <div class="hero-backdrop-container" aria-hidden="true">
+                <div class="hero-backdrop-layer hero-backdrop-active" id="hero-backdrop-layer-1"></div>
+                <div class="hero-backdrop-layer" id="hero-backdrop-layer-2"></div>
+                <div class="hero-backdrop-overlay"></div>
+            </div>
 
-                <div class="hero-poster-preview" id="hero-poster-box">
-                    <!-- Loaded dynamically from assets/posters.js -->
+            <!-- Foreground Movie Content Wrapper -->
+            <div class="hero-content-wrapper">
+                <div class="hero-content-inner" id="hero-movie-content">
+                    <div class="hero-badge-row">
+                        <span class="hero-badge" id="hero-badge">⚡ Now Screening in Chennai</span>
+                        <span class="hero-format-pill" id="hero-format-pill">IMAX Laser • Dolby Atmos</span>
+                    </div>
+
+                    <h1 class="hero-title" id="hero-title">Loading Featured Movie...</h1>
+
+                    <div class="hero-meta" id="hero-meta">
+                        <span class="meta-rating" id="hero-rating">★ --/10</span>
+                        <span class="meta-pill" id="hero-genre">Genre</span>
+                        <span class="meta-pill" id="hero-lang">Language</span>
+                        <span class="meta-pill" id="hero-duration">Duration</span>
+                    </div>
+
+                    <p class="hero-synopsis" id="hero-synopsis">
+                        Experience premier blockbuster entertainment across Chennai's flagship cinema destinations.
+                    </p>
+
+                    <div class="hero-actions">
+                        <button class="btn-primary btn-hero-book" id="btn-hero-book" aria-label="Book Tickets for current movie">
+                            <span>🎟️</span>
+                            <span>Book Tickets</span>
+                        </button>
+                        <button class="btn-secondary btn-hero-queries" id="btn-hero-queries" onclick="window.App.switchView('sql-sandbox')" aria-label="View 18 Relational SQL Queries">
+                            <span>📊 View 18 SQL Queries</span>
+                        </button>
+                    </div>
                 </div>
             </div>
+
+            <!-- Navigation Controls: Previous / Next Arrows -->
+            <button class="hero-nav-arrow hero-nav-prev" id="hero-nav-prev" aria-label="Previous featured movie" title="Previous movie (Left Arrow)">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+            </button>
+            <button class="hero-nav-arrow hero-nav-next" id="hero-nav-next" aria-label="Next featured movie" title="Next movie (Right Arrow)">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+            </button>
+
+            <!-- Navigation Controls: Pagination Dots -->
+            <div class="hero-pagination" id="hero-pagination" role="tablist" aria-label="Featured movie slideshow pagination">
+                <!-- Injected dynamically for the 5 latest movies -->
+            </div>
+
+            <!-- Screen Reader Live Status -->
+            <div class="sr-only" aria-live="polite" id="hero-sr-status"></div>
         </section>
 
         <!-- Filter Controls -->
@@ -314,7 +349,7 @@
     <div id="checkout-modal" class="modal-backdrop">
         <div class="modal-box">
             <button class="modal-close-btn" onclick="window.App.closeCheckoutModal()">✕</button>
-            
+
             <h3 style="font-family: var(--font-heading); font-size: 1.5rem; color: var(--text-pure); margin-bottom: 0.25rem;">
                 Checkout &amp; Payment Confirmation
             </h3>
@@ -565,6 +600,156 @@
     </div>
 
     <!-- ====================================================================
+         ARTWORK & BACKDROP MANAGER MODAL
+         ==================================================================== -->
+    <div id="artwork-manager-modal" class="modal-backdrop">
+        <div class="modal-box artwork-manager-box" style="max-width: 880px; max-height: 92vh; overflow-y: auto;">
+            <button class="modal-close-btn" onclick="window.MTRSArtworkManager.close()" aria-label="Close Artwork Manager">✕</button>
+
+            <!-- Modal Header -->
+            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.35rem;">
+                <span style="font-size: 1.5rem;">🎨</span>
+                <h3 style="font-family: var(--font-heading); font-size: 1.4rem; color: var(--text-pure); margin: 0;">
+                    Cinema Artwork &amp; Backdrop Manager
+                </h3>
+            </div>
+            <p style="color: var(--text-muted); font-size: 0.84rem; margin-bottom: 1.25rem; line-height: 1.45;">
+                Directly upload, preview, and customize portrait posters (catalogue cards) and cinematic widescreen backdrops (homepage hero) with persistent browser-local IndexedDB storage.
+            </p>
+
+            <!-- Movie Selector Bar -->
+            <div class="art-movie-selector-bar">
+                <div style="flex: 1; min-width: 260px;">
+                    <label for="art-movie-select" style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
+                        Select Movie to Customize:
+                    </label>
+                    <select id="art-movie-select" class="query-selector-select" style="margin-bottom: 0; padding: 0.65rem 0.9rem; font-size: 0.9rem; width: 100%;">
+                        <!-- Populated dynamically by MTRSArtworkManager -->
+                    </select>
+                </div>
+                <div class="art-selected-meta">
+                    <div style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Current Movie</div>
+                    <div id="art-movie-name" style="font-family: var(--font-heading); font-size: 1.15rem; font-weight: 800; color: var(--text-pure); line-height: 1.2;">
+                        --
+                    </div>
+                    <div style="display: flex; gap: 0.5rem; align-items: center; margin-top: 0.3rem;">
+                        <span id="art-movie-id" class="badge-code">ID: --</span>
+                        <span id="art-movie-genre" class="badge-genre">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Two-Column Artwork Cards Layout -->
+            <div class="artwork-manager-grid">
+                <!-- CARD 1: THEATRICAL POSTER -->
+                <div class="art-card">
+                    <div class="art-card-header">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <span style="font-size: 1.1rem;">🖼️</span>
+                            <span style="font-weight: 800; font-size: 0.95rem; color: var(--text-pure);">Theatrical Poster</span>
+                        </div>
+                        <span class="art-ratio-pill">2:3 Portrait</span>
+                    </div>
+                    <div class="art-card-desc">
+                        Displayed in movie catalogue cards and booking modal.
+                    </div>
+
+                    <!-- Live Poster Preview -->
+                    <div class="art-poster-preview-wrapper">
+                        <div id="art-poster-preview-container" class="art-poster-preview-box">
+                            <!-- Injected dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Current Status Badge -->
+                    <div id="art-poster-status" class="art-status-wrapper">
+                        <!-- e.g. Custom Upload / Official TMDb / Staged -->
+                    </div>
+
+                    <!-- Poster Controls -->
+                    <input type="file" id="art-poster-file-input" accept="image/jpeg,image/jpg,image/png,image/webp" style="display: none;">
+
+                    <div class="art-btn-row">
+                        <button type="button" class="btn-primary" id="btn-art-upload-poster" style="flex: 1; justify-content: center; font-size: 0.82rem; padding: 0.55rem 0.8rem;">
+                            📁 Upload Poster
+                        </button>
+                        <button type="button" class="btn-secondary" id="btn-art-reset-poster" style="font-size: 0.82rem; padding: 0.55rem 0.8rem; color: var(--primary);" title="Reset to default poster">
+                            ↺ Reset
+                        </button>
+                    </div>
+
+                    <div class="art-hint">
+                        Recommended: ~1000 × 1500 px. Accepts JPEG, PNG, WebP &le; 25MB.
+                    </div>
+                </div>
+
+                <!-- CARD 2: CINEMATIC HERO BACKDROP -->
+                <div class="art-card">
+                    <div class="art-card-header">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <span style="font-size: 1.1rem;">🎬</span>
+                            <span style="font-weight: 800; font-size: 0.95rem; color: var(--text-pure);">Cinematic Hero Backdrop</span>
+                        </div>
+                        <span class="art-ratio-pill" style="color: var(--accent-cyan); border-color: rgba(0, 229, 255, 0.3);">16:9 Landscape</span>
+                    </div>
+                    <div class="art-card-desc">
+                        Full-bleed background on the homepage Netflix-style slideshow.
+                    </div>
+
+                    <!-- Live Backdrop Preview -->
+                    <div class="art-backdrop-preview-wrapper">
+                        <div id="art-backdrop-preview-container" class="art-backdrop-preview-box">
+                            <!-- Injected dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Current Status Badge -->
+                    <div id="art-backdrop-status" class="art-status-wrapper">
+                        <!-- e.g. Custom Upload / Official TMDb / Staged -->
+                    </div>
+
+                    <!-- Backdrop Controls -->
+                    <input type="file" id="art-backdrop-file-input" accept="image/jpeg,image/jpg,image/png,image/webp" style="display: none;">
+
+                    <div class="art-btn-row">
+                        <button type="button" class="btn-primary" id="btn-art-upload-backdrop" style="flex: 1; justify-content: center; font-size: 0.82rem; padding: 0.55rem 0.8rem;">
+                            📁 Upload Backdrop
+                        </button>
+                        <button type="button" class="btn-secondary" id="btn-art-reset-backdrop" style="font-size: 0.82rem; padding: 0.55rem 0.8rem; color: var(--primary);" title="Reset to default backdrop">
+                            ↺ Reset
+                        </button>
+                    </div>
+
+                    <div class="art-hint">
+                        Recommended: ~1920 × 1080 px. Accepts JPEG, PNG, WebP &le; 25MB.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dynamic Status / Alert Banner -->
+            <div id="art-status-banner" class="art-status-banner" style="display: none;"></div>
+
+            <!-- Storage Notice -->
+            <div class="art-storage-notice">
+                <span style="font-size: 1rem;">ℹ️</span>
+                <span>
+                    <strong>Browser-Local Persistence:</strong> Artwork is saved persistently to this device's browser IndexedDB storage and survives page refreshes without database schema changes. It is local to your browser and not synced to external devices.
+                </span>
+            </div>
+
+            <!-- Modal Footer Actions -->
+            <div style="display: flex; gap: 0.75rem; justify-content: flex-end; align-items: center; margin-top: 1.5rem; border-top: 1px solid var(--border-subtle); padding-top: 1.25rem;">
+                <button type="button" class="btn-secondary" id="btn-art-close" style="padding: 0.6rem 1.25rem; font-size: 0.88rem;">
+                    Close
+                </button>
+                <button type="button" class="btn-primary" id="btn-art-save" style="padding: 0.6rem 1.5rem; font-size: 0.88rem;" disabled>
+                    ✓ Changes Saved
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====================================================================
          ADD / EDIT MOVIE MODAL (Admin Movie & Poster Management - Feature 2 & 3)
          ==================================================================== -->
     <div id="movie-modal" class="modal-backdrop">
@@ -644,7 +829,7 @@
                                 Upload From Computer (JPEG, PNG, WebP &le; 5MB):
                             </label>
                             <input type="file" id="modal-poster-file-input" accept="image/jpeg,image/png,image/webp" style="display: none;" onchange="window.MTRSAdmin.handlePosterFileSelected(this)">
-                            
+
                             <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem; flex-wrap: wrap;">
                                 <button type="button" class="btn-secondary" style="padding: 0.45rem 0.9rem; font-size: 0.82rem;" onclick="document.getElementById('modal-poster-file-input').click()">
                                     📁 Choose File...
@@ -897,6 +1082,7 @@
     <script src="js/db-data.js"></script>
     <script src="js/db-engine.js"></script>
     <!-- 4. Application Controllers -->
+    <script src="js/artwork-manager.js"></script>
     <script src="js/app.js"></script>
     <script src="js/admin.js"></script>
 

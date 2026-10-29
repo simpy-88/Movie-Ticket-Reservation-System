@@ -588,6 +588,9 @@ class MTRSAdminPanel {
                         value="${this.movieSearchQuery || ''}"
                         oninput="window.MTRSAdmin.filterMovies(this.value)"
                     />
+                    <button class="btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.85rem; display: flex; align-items: center; gap: 0.4rem;" onclick="window.MTRSArtworkManager.open()">
+                        🎨 Manage Artwork
+                    </button>
                     <button class="btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem;" onclick="window.MTRSAdmin.openAddMovieModal()">
                         + Add New Movie
                     </button>
@@ -648,11 +651,14 @@ class MTRSAdminPanel {
                                         </span>
                                     </td>
                                     <td>
-                                        <div style="display: flex; gap: 0.4rem;">
-                                            <button class="btn-secondary" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;" onclick="window.MTRSAdmin.openEditMovieModal('${m.Movie_ID}')">
-                                                Edit Movie
+                                        <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
+                                            <button class="btn-secondary" style="padding: 0.25rem 0.55rem; font-size: 0.75rem; color: var(--accent-cyan);" onclick="window.MTRSArtworkManager.open('${m.Movie_ID}')" title="Upload custom poster or backdrop">
+                                                🎨 Artwork
                                             </button>
-                                            <button class="btn-book-card" style="background: rgba(229, 9, 20, 0.2); border: 1px solid var(--primary); padding: 0.25rem 0.6rem; font-size: 0.75rem;" onclick="window.MTRSAdmin.deleteOrArchiveMovie('${m.Movie_ID}')">
+                                            <button class="btn-secondary" style="padding: 0.25rem 0.55rem; font-size: 0.75rem;" onclick="window.MTRSAdmin.openEditMovieModal('${m.Movie_ID}')">
+                                                Edit
+                                            </button>
+                                            <button class="btn-book-card" style="background: rgba(229, 9, 20, 0.2); border: 1px solid var(--primary); padding: 0.25rem 0.55rem; font-size: 0.75rem;" onclick="window.MTRSAdmin.deleteOrArchiveMovie('${m.Movie_ID}')">
                                                 ${movieShows.length > 0 ? 'Archive' : 'Delete'}
                                             </button>
                                         </div>

@@ -35,6 +35,16 @@ class MTRSApp {
         this.isLoadingData = true;
         this.isLoadingMovies = true;
 
+        // Netflix-Style Cinematic Hero Slideshow State
+        this.featuredMovies = [];
+        this.heroCurrentIndex = 0;
+        this.heroAutoPlayTimer = null;
+        this.heroIsPaused = false;
+        this.heroIsTransitioning = false;
+        this.activeBackdropLayer = 1;
+        this._heroListenersAttached = false;
+        this._preloadedHeroImages = new Set();
+
         this.init();
     }
 
@@ -104,6 +114,18 @@ class MTRSApp {
         // Ensure original high-resolution uploaded posters render as soon as IndexedDB preloads
         window.addEventListener('mtrs:posters-loaded', () => {
             this.renderHeroBanner();
+            this.renderMovieGrid();
+        });
+
+        // Reactive listener for artwork updates from Artwork Manager
+        window.addEventListener('mtrs:artwork-updated', (e) => {
+            const updatedMovieId = e.detail && e.detail.movieId;
+            if (this.featuredMovies && this.featuredMovies[this.heroCurrentIndex]) {
+                const currentHeroMovie = this.featuredMovies[this.heroCurrentIndex];
+                if (!updatedMovieId || currentHeroMovie.Movie_ID === updatedMovieId) {
+                    this.renderHeroSlide(this.heroCurrentIndex, true);
+                }
+            }
             this.renderMovieGrid();
         });
 
@@ -263,6 +285,8 @@ class MTRSApp {
                 this.movieSource = 'SUPABASE';
                 if (this.engine && this.engine.db) this.engine.db.MOVIE = system.movies.data;
                 loadedSummary.push(`${system.movies.count} Movies`);
+                // Update featured movies for Netflix-style hero slideshow from Supabase
+                await this.updateFeaturedMovies();
             } else {
                 allLive = false;
                 this.dataSources.movies = 'LOCAL_FALLBACK';
@@ -271,6 +295,7 @@ class MTRSApp {
                 const err = system.movies?.error || 'Empty movie dataset';
                 fallbackReasons.push(`Movies: ${err}`);
                 console.warn('[MTRS App] Movies query failed, using local fallback:', err);
+                this.featuredMovies = this.getLatestFeaturedMovies(5);
             }
 
             // 2. Process Theaters (public.theaters)
@@ -350,6 +375,7 @@ class MTRSApp {
         this.theaters = this.engine.getTable('THEATER');
         this.screens = this.engine.getTable('SCREEN');
         this.shows = this.engine.getTable('SHOWS');
+        this.featuredMovies = this.getLatestFeaturedMovies(5);
 
         this.dataSources = {
             movies: 'LOCAL_FALLBACK',
@@ -510,15 +536,19 @@ class MTRSApp {
         if (viewName === 'home') {
             document.getElementById('view-home').style.display = 'block';
             this.renderMovieGrid();
-        } else if (viewName === 'my-bookings') {
-            document.getElementById('view-my-bookings').style.display = 'block';
-            this.renderMyBookings();
-        } else if (viewName === 'admin') {
-            document.getElementById('view-admin').style.display = 'block';
-            if (window.MTRSAdmin) window.MTRSAdmin.refreshDashboard();
-        } else if (viewName === 'sql-sandbox') {
-            document.getElementById('view-sql-sandbox').style.display = 'block';
-            if (window.MTRSAdmin) window.MTRSAdmin.initQuerySandbox();
+            this.startHeroAutoPlay();
+        } else {
+            this.stopHeroAutoPlay();
+            if (viewName === 'my-bookings') {
+                document.getElementById('view-my-bookings').style.display = 'block';
+                this.renderMyBookings();
+            } else if (viewName === 'admin') {
+                document.getElementById('view-admin').style.display = 'block';
+                if (window.MTRSAdmin) window.MTRSAdmin.refreshDashboard();
+            } else if (viewName === 'sql-sandbox') {
+                document.getElementById('view-sql-sandbox').style.display = 'block';
+                if (window.MTRSAdmin) window.MTRSAdmin.initQuerySandbox();
+            }
         }
 
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -541,23 +571,338 @@ class MTRSApp {
     }
 
     // ------------------------------------------------------------------------
-    // HERO BANNER
+    // NETFLIX-STYLE CINEMATIC HERO SLIDESHOW CONTROLLER
     // ------------------------------------------------------------------------
-    renderHeroBanner() {
-        const movies = this.movies || this.engine.getTable('MOVIE');
-        const heroMovie = movies.find(m => m.Movie_ID === 'M01') || movies[0];
-        if (!heroMovie) return;
 
-        const posterBox = document.getElementById('hero-poster-box');
-        if (posterBox) {
-            posterBox.innerHTML = window.MTRSPosters ? 
-                window.MTRSPosters.renderPosterHtml(heroMovie, 'hero-poster-img', heroMovie.Movie_Name) :
-                (window.MOVIE_POSTERS && window.MOVIE_POSTERS[heroMovie.Movie_ID] ? window.MOVIE_POSTERS[heroMovie.Movie_ID].svg : '');
+    /**
+     * Resolves the 5 most recently added movies with reliable sorting:
+     * 1. Creation timestamp (created_at / Created_At) DESC
+     * 2. Primary key identifier (Movie_ID) DESC as authoritative fallback
+     */
+    getLatestFeaturedMovies(limit = 5) {
+        const pool = (this.movies && this.movies.length > 0) ? this.movies :
+            (this.engine ? this.engine.getTable('MOVIE') : []);
+        if (!Array.isArray(pool) || pool.length === 0) return [];
+
+        const sorted = [...pool].sort((a, b) => {
+            const timeA = (a.Created_At || a.created_at) ? Date.parse(a.Created_At || a.created_at) : NaN;
+            const timeB = (b.Created_At || b.created_at) ? Date.parse(b.Created_At || b.created_at) : NaN;
+            if (!isNaN(timeA) && !isNaN(timeB) && timeA !== timeB) {
+                return timeB - timeA;
+            }
+            const idA = String(a.Movie_ID || a.movie_id || '');
+            const idB = String(b.Movie_ID || b.movie_id || '');
+            return idB.localeCompare(idA, undefined, { numeric: true, sensitivity: 'base' });
+        });
+
+        return sorted.slice(0, limit);
+    }
+
+    /**
+     * Retrieves featured movies directly from Supabase with graceful fallback
+     */
+    async updateFeaturedMovies() {
+        if (window.MTRSSupabase && typeof window.MTRSSupabase.fetchFeaturedMovies === 'function') {
+            try {
+                const res = await window.MTRSSupabase.fetchFeaturedMovies(5);
+                if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
+                    this.featuredMovies = res.data;
+                    this.renderHeroBanner();
+                    return;
+                }
+            } catch (err) {
+                console.warn('[MTRS App] Direct fetchFeaturedMovies query error, falling back:', err);
+            }
         }
 
+        this.featuredMovies = this.getLatestFeaturedMovies(5);
+        this.renderHeroBanner();
+    }
+
+    /**
+     * Initializes or re-renders the Netflix-style Cinematic Hero Slideshow
+     */
+    renderHeroBanner() {
+        const heroSection = document.getElementById('hero-slideshow');
+        if (!heroSection) return;
+
+        if (!this.featuredMovies || this.featuredMovies.length === 0) {
+            this.featuredMovies = this.getLatestFeaturedMovies(5);
+        }
+
+        if (!this.featuredMovies || this.featuredMovies.length === 0) return;
+
+        if (this.heroCurrentIndex >= this.featuredMovies.length) {
+            this.heroCurrentIndex = 0;
+        }
+
+        // Generate pagination dots
+        const paginationContainer = document.getElementById('hero-pagination');
+        if (paginationContainer) {
+            paginationContainer.innerHTML = this.featuredMovies.map((movie, idx) => `
+                <button
+                    class="hero-dot ${idx === this.heroCurrentIndex ? 'active' : ''}"
+                    role="tab"
+                    aria-label="Slide ${idx + 1} of ${this.featuredMovies.length}: ${movie.Movie_Name}"
+                    aria-selected="${idx === this.heroCurrentIndex ? 'true' : 'false'}"
+                    tabindex="0"
+                    data-slide-index="${idx}"
+                ></button>
+            `).join('');
+
+            paginationContainer.querySelectorAll('.hero-dot').forEach(dot => {
+                dot.onclick = (e) => {
+                    e.stopPropagation();
+                    const idx = parseInt(dot.getAttribute('data-slide-index'), 10);
+                    if (!isNaN(idx)) this.goToHeroSlide(idx);
+                };
+            });
+        }
+
+        // Attach event listeners once
+        if (!this._heroListenersAttached) {
+            this.setupHeroSlideshowListeners();
+            this._heroListenersAttached = true;
+        }
+
+        // Render current slide immediately without flash
+        this.renderHeroSlide(this.heroCurrentIndex, true);
+
+        // Start 4-second automated advancement timer
+        this.startHeroAutoPlay();
+
+        // Preload next artwork
+        this.preloadNextHeroArtwork();
+    }
+
+    setupHeroSlideshowListeners() {
+        const heroSection = document.getElementById('hero-slideshow');
+        const prevBtn = document.getElementById('hero-nav-prev');
+        const nextBtn = document.getElementById('hero-nav-next');
+
+        if (heroSection) {
+            heroSection.addEventListener('pointerenter', () => {
+                this.heroIsPaused = true;
+            });
+            heroSection.addEventListener('pointerleave', () => {
+                this.heroIsPaused = false;
+            });
+
+            heroSection.addEventListener('keydown', (e) => {
+                if (e.key === 'ArrowLeft') {
+                    e.preventDefault();
+                    this.prevHeroSlide();
+                } else if (e.key === 'ArrowRight') {
+                    e.preventDefault();
+                    this.nextHeroSlide();
+                }
+            });
+        }
+
+        if (prevBtn) {
+            prevBtn.onclick = (e) => {
+                e.stopPropagation();
+                this.prevHeroSlide();
+            };
+        }
+
+        if (nextBtn) {
+            nextBtn.onclick = (e) => {
+                e.stopPropagation();
+                this.nextHeroSlide();
+            };
+        }
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                this.heroIsPaused = true;
+            } else {
+                this.heroIsPaused = false;
+            }
+        });
+    }
+
+    goToHeroSlide(targetIndex) {
+        if (!this.featuredMovies || this.featuredMovies.length === 0) return;
+        if (targetIndex === this.heroCurrentIndex && !this.heroIsTransitioning) return;
+        if (this.heroIsTransitioning) return;
+
+        this.startHeroAutoPlay();
+
+        const count = this.featuredMovies.length;
+        const normalizedIndex = ((targetIndex % count) + count) % count;
+        this.renderHeroSlide(normalizedIndex, false);
+    }
+
+    nextHeroSlide() {
+        if (!this.featuredMovies || this.featuredMovies.length <= 1) return;
+        this.goToHeroSlide(this.heroCurrentIndex + 1);
+    }
+
+    prevHeroSlide() {
+        if (!this.featuredMovies || this.featuredMovies.length <= 1) return;
+        this.goToHeroSlide(this.heroCurrentIndex - 1);
+    }
+
+    startHeroAutoPlay() {
+        this.stopHeroAutoPlay();
+        if (!this.featuredMovies || this.featuredMovies.length <= 1) return;
+
+        this.heroAutoPlayTimer = setInterval(() => {
+            if (!this.heroIsPaused) {
+                this.nextHeroSlide();
+            }
+        }, 4000);
+    }
+
+    stopHeroAutoPlay() {
+        if (this.heroAutoPlayTimer) {
+            clearInterval(this.heroAutoPlayTimer);
+            this.heroAutoPlayTimer = null;
+        }
+    }
+
+    renderHeroSlide(index, immediate = false) {
+        if (!this.featuredMovies || this.featuredMovies.length === 0) return;
+        const movie = this.featuredMovies[index];
+        if (!movie) return;
+
+        this.heroCurrentIndex = index;
+
+        // Update pagination dots
+        const dots = document.querySelectorAll('#hero-pagination .hero-dot');
+        dots.forEach((dot, idx) => {
+            const isActive = idx === index;
+            dot.classList.toggle('active', isActive);
+            dot.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        });
+
+        // Resolve backdrop URL with priority & fallback
+        let backdropUrl = '';
+        if (window.MTRSPosters && typeof window.MTRSPosters.resolveBackdrop === 'function') {
+            backdropUrl = window.MTRSPosters.resolveBackdrop(movie);
+        }
+        if (!backdropUrl) {
+            backdropUrl = movie.Backdrop_Url || movie.backdrop_url || movie.Poster_Url || movie.poster_url || '';
+        }
+
+        // Dual backdrop layers crossfade
+        const layer1 = document.getElementById('hero-backdrop-layer-1');
+        const layer2 = document.getElementById('hero-backdrop-layer-2');
+
+        if (layer1 && layer2) {
+            const nextLayer = this.activeBackdropLayer === 1 ? layer2 : layer1;
+            const currentLayer = this.activeBackdropLayer === 1 ? layer1 : layer2;
+
+            if (immediate) {
+                currentLayer.style.backgroundImage = backdropUrl ? `url("${backdropUrl}")` : 'none';
+                currentLayer.classList.add('hero-backdrop-active');
+                nextLayer.classList.remove('hero-backdrop-active');
+            } else {
+                const img = new Image();
+                img.onload = () => {
+                    nextLayer.style.backgroundImage = `url("${backdropUrl}")`;
+                    nextLayer.classList.add('hero-backdrop-active');
+                    currentLayer.classList.remove('hero-backdrop-active');
+                    this.activeBackdropLayer = this.activeBackdropLayer === 1 ? 2 : 1;
+                };
+                img.onerror = () => {
+                    const fallbackPoster = window.MTRSPosters ?
+                        window.MTRSPosters.resolvePoster(movie, { size: 'w780' }) : (movie.Poster_Url || '');
+                    nextLayer.style.backgroundImage = fallbackPoster ? `url("${fallbackPoster}")` : 'none';
+                    nextLayer.classList.add('hero-backdrop-active');
+                    currentLayer.classList.remove('hero-backdrop-active');
+                    this.activeBackdropLayer = this.activeBackdropLayer === 1 ? 2 : 1;
+                };
+                img.src = backdropUrl;
+            }
+        }
+
+        // Synchronize Book Tickets button with current movie
         const btnBookHero = document.getElementById('btn-hero-book');
         if (btnBookHero) {
-            btnBookHero.onclick = () => this.selectMovieForBooking(heroMovie.Movie_ID);
+            btnBookHero.onclick = (e) => {
+                e.preventDefault();
+                this.selectMovieForBooking(movie.Movie_ID);
+            };
+            btnBookHero.setAttribute('aria-label', `Book Tickets for ${movie.Movie_Name}`);
+        }
+
+        // Determine formats available for this movie across Chennai shows
+        const shows = this.shows || (this.engine ? this.engine.getTable('SHOWS') : []);
+        const movieShows = Array.isArray(shows) ? shows.filter(s => s.Movie_ID === movie.Movie_ID) : [];
+        const uniqueFormats = [...new Set(movieShows.map(s => s.Format).filter(Boolean))];
+        const formatString = uniqueFormats.length > 0 ?
+            uniqueFormats.slice(0, 3).join(' • ') : 'IMAX Laser • Dolby Atmos';
+
+        // Content updates with slide transition
+        const contentEl = document.getElementById('hero-movie-content');
+        const updateText = () => {
+            const titleEl = document.getElementById('hero-title');
+            const ratingEl = document.getElementById('hero-rating');
+            const genreEl = document.getElementById('hero-genre');
+            const langEl = document.getElementById('hero-lang');
+            const durationEl = document.getElementById('hero-duration');
+            const formatPill = document.getElementById('hero-format-pill');
+            const synopsisEl = document.getElementById('hero-synopsis');
+            const srStatus = document.getElementById('hero-sr-status');
+
+            if (titleEl) titleEl.textContent = movie.Movie_Name || 'Untitled Movie';
+            if (ratingEl) ratingEl.textContent = `★ ${Number(movie.Rating || 0).toFixed(1)}/10`;
+            if (genreEl) genreEl.textContent = movie.Genre || 'Cinema';
+            if (langEl) langEl.textContent = movie.Language || 'English';
+            if (durationEl) {
+                const dur = parseInt(movie.Duration, 10);
+                durationEl.textContent = (isNaN(dur) || dur <= 0) ? '' : `${Math.floor(dur / 60)}h ${dur % 60}m`;
+                durationEl.style.display = (isNaN(dur) || dur <= 0) ? 'none' : 'inline-block';
+            }
+            if (formatPill) formatPill.textContent = formatString;
+            if (synopsisEl) {
+                synopsisEl.textContent = movie.Synopsis ||
+                    `Experience ${movie.Movie_Name} at Chennai's premier destinations across IMAX, P[XL], and Dolby Atmos screens.`;
+            }
+
+            if (srStatus) {
+                srStatus.textContent = `Slide ${index + 1} of ${this.featuredMovies.length}: ${movie.Movie_Name}, Rating ${movie.Rating} of 10, ${movie.Genre}`;
+            }
+        };
+
+        if (immediate || !contentEl) {
+            updateText();
+        } else {
+            this.heroIsTransitioning = true;
+            contentEl.classList.add('hero-content-transitioning');
+            setTimeout(() => {
+                updateText();
+                contentEl.classList.remove('hero-content-transitioning');
+                setTimeout(() => {
+                    this.heroIsTransitioning = false;
+                }, 200);
+            }, 180);
+        }
+
+        // Preload next movie's backdrop
+        this.preloadNextHeroArtwork();
+    }
+
+    preloadNextHeroArtwork() {
+        if (!this.featuredMovies || this.featuredMovies.length <= 1) return;
+        const nextIndex = (this.heroCurrentIndex + 1) % this.featuredMovies.length;
+        const nextMovie = this.featuredMovies[nextIndex];
+        if (!nextMovie) return;
+
+        let url = '';
+        if (window.MTRSPosters && typeof window.MTRSPosters.resolveBackdrop === 'function') {
+            url = window.MTRSPosters.resolveBackdrop(nextMovie);
+        }
+        if (!url) {
+            url = nextMovie.Backdrop_Url || nextMovie.backdrop_url || nextMovie.Poster_Url || '';
+        }
+
+        if (url && !this._preloadedHeroImages.has(url)) {
+            const preImg = new Image();
+            preImg.src = url;
+            this._preloadedHeroImages.add(url);
         }
     }
 
@@ -588,7 +933,7 @@ class MTRSApp {
 
         const filtered = movies.filter(movie => {
             // Search query filter
-            const matchesSearch = !this.searchQuery || 
+            const matchesSearch = !this.searchQuery ||
                 movie.Movie_Name.toLowerCase().includes(this.searchQuery) ||
                 movie.Genre.toLowerCase().includes(this.searchQuery) ||
                 movie.Language.toLowerCase().includes(this.searchQuery);
@@ -621,14 +966,14 @@ class MTRSApp {
         }
 
         grid.innerHTML = filtered.map(movie => {
-            const posterHtml = window.MTRSPosters ? 
+            const posterHtml = window.MTRSPosters ?
                 window.MTRSPosters.renderPosterHtml(movie, 'movie-poster-img', movie.Movie_Name) :
                 (window.MOVIE_POSTERS && window.MOVIE_POSTERS[movie.Movie_ID] ? window.MOVIE_POSTERS[movie.Movie_ID].svg : '');
 
             // Find available formats for this movie from shows
             const movieShows = shows.filter(s => s.Movie_ID === movie.Movie_ID);
             const formats = [...new Set(movieShows.map(s => s.Format))];
-            const formatTags = formats.length > 0 ? 
+            const formatTags = formats.length > 0 ?
                 formats.map(f => `<span class="card-format-tag">${f}</span>`).join('') :
                 '<span class="card-format-tag">2D</span>';
 
@@ -670,7 +1015,8 @@ class MTRSApp {
         this.selectedShow = null;
         this.selectedSeats = [];
 
-        // Switch to theater view
+        // Switch to theater view and pause hero slideshow
+        this.stopHeroAutoPlay();
         document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
         document.getElementById('view-home').style.display = 'none';
         document.getElementById('view-seats').style.display = 'none';
@@ -779,7 +1125,7 @@ class MTRSApp {
                             ${group.shows.map(show => {
                                 const screen = group.screens.find(s => s.Screen_ID === show.Screen_ID);
                                 const isPLF = ['IMAX 3D', 'IMAX 2D', 'P[XL] 2D', 'P[XL] 3D', 'BIGPIX 2D', 'BIGPIX 3D'].includes(show.Format);
-                                
+
                                 return `
                                     <button class="showtime-btn ${isPLF ? 'plf-highlight' : ''}" onclick="window.App.selectShowForSeats('${show.Show_ID}')">
                                         <div class="showtime-time">${this.formatShowtimeRange(show.Show_Time, movie.Duration)}</div>
@@ -934,9 +1280,9 @@ class MTRSApp {
 
         // 1. Auditorium Sizing from Authoritative Screen Capacity
         const capacity = parseInt(screen ? screen.Capacity : 0, 10) || 160;
-        
+
         // Canonical layout configuration (Shared with Admin and Database Seed)
-        const layout = (typeof window.calculateScreenLayout === 'function') 
+        const layout = (typeof window.calculateScreenLayout === 'function')
             ? window.calculateScreenLayout(capacity)
             : { colsPerRow: 14, numRows: Math.ceil(capacity / 14), aisleCol: 7, rowLabels: ['A', 'B', 'C', 'D'] };
 
@@ -1063,8 +1409,8 @@ class MTRSApp {
                 <div>
                     <h2 class="seat-movie-title">${movie.Movie_Name} (${show.Format})</h2>
                     <div class="seat-theater-meta">
-                        ${theater ? theater.Theater_Name : ''} | 
-                        <strong>${screen ? screen.Screen_Name : 'Audi'}</strong> • 
+                        ${theater ? theater.Theater_Name : ''} |
+                        <strong>${screen ? screen.Screen_Name : 'Audi'}</strong> •
                         ${screen ? screen.Projection_Tech : ''} • ${screen ? screen.Audio_Tech : ''}
                     </div>
                     <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-top: 8px;">
@@ -1077,10 +1423,10 @@ class MTRSApp {
                         <div class="auditorium-inventory-badge ${isFullySynchronized ? '' : (physicalDbSeats > 0 ? 'warning' : 'danger')}">
                             <span class="verified-dot"></span>
                             <span>
-                                ${isFullySynchronized 
-                                    ? `Database Inventory Synchronized: ${physicalDbSeats} Physical Seats (${occupiedCount} Reserved, ${availableCount} Available)` 
-                                    : (physicalDbSeats > 0 
-                                        ? `Database Inventory Partial: ${physicalDbSeats}/${capacity} Physical Seats (${unconfiguredCount} Unconfigured)` 
+                                ${isFullySynchronized
+                                    ? `Database Inventory Synchronized: ${physicalDbSeats} Physical Seats (${occupiedCount} Reserved, ${availableCount} Available)`
+                                    : (physicalDbSeats > 0
+                                        ? `Database Inventory Partial: ${physicalDbSeats}/${capacity} Physical Seats (${unconfiguredCount} Unconfigured)`
                                         : `Database Notice: 0 physical seats found in public.seats for this screen.`)}
                             </span>
                         </div>
@@ -1138,7 +1484,7 @@ class MTRSApp {
                                 const isConfigured = seat.isConfigured;
                                 const isBooked = seat.Status === 'BOOKED';
                                 const isSelected = seat.Seat_ID && this.selectedSeats.some(s => s.Seat_ID === seat.Seat_ID);
-                                
+
                                 let seatClass = 'seat';
                                 if (!isConfigured) {
                                     seatClass += ' unconfigured';
@@ -1159,8 +1505,8 @@ class MTRSApp {
                                 const clickAttr = isConfigured && !isBooked ? 'onclick="window.App.toggleSeatSelection(this)"' : '';
 
                                 return `
-                                    <div 
-                                        class="${seatClass}" 
+                                    <div
+                                        class="${seatClass}"
                                         data-seat-id="${seat.Seat_ID || ''}"
                                         data-seat-number="${seat.Seat_Number}"
                                         data-seat-type="${seat.Seat_Type}"
@@ -1221,8 +1567,8 @@ class MTRSApp {
                             <div class="summary-item">
                                 <span class="summary-label">Selected Seats (<span id="summary-seat-count">${selectedCount}</span>)</span>
                                 <div class="summary-seats-container" id="summary-seats-container">
-                                    ${selectedCount === 0 ? 
-                                        '<span class="summary-empty-text">No seats selected. Click an available seat above.</span>' : 
+                                    ${selectedCount === 0 ?
+                                        '<span class="summary-empty-text">No seats selected. Click an available seat above.</span>' :
                                         this.selectedSeats.map(s => `<span class="selected-seat-chip">${s.Seat_Number}</span>`).join('')}
                                 </div>
                             </div>
@@ -1232,9 +1578,9 @@ class MTRSApp {
                             </div>
                         </div>
                         <div class="summary-action-group">
-                            <button 
-                                class="btn-primary summary-book-btn ${selectedCount === 0 || !hasActiveInventory ? 'disabled' : ''}" 
-                                id="summary-proceed-btn" 
+                            <button
+                                class="btn-primary summary-book-btn ${selectedCount === 0 || !hasActiveInventory ? 'disabled' : ''}"
+                                id="summary-proceed-btn"
                                 onclick="window.App.openCheckoutModal()"
                                 ${selectedCount === 0 || !hasActiveInventory ? 'disabled' : ''}
                             >
@@ -1395,7 +1741,7 @@ class MTRSApp {
         document.getElementById('checkout-theater-info').textContent = `${theater ? theater.Theater_Name : ''} • ${screen ? screen.Screen_Name : 'Audi'} (${this.selectedShow.Format})`;
         document.getElementById('checkout-show-time').textContent = `${this.selectedShow.Show_Date} • ${this.formatShowtimeRange(this.selectedShow.Show_Time, this.selectedMovie.Duration)}`;
         document.getElementById('checkout-seats-list').textContent = this.selectedSeats.map(s => s.Seat_Number).join(', ');
-        
+
         document.getElementById('checkout-subtotal').textContent = `₹${subtotal.toFixed(2)}`;
         document.getElementById('checkout-conv-fee').textContent = `₹${convenienceFee.toFixed(2)}`;
         document.getElementById('checkout-gst').textContent = `₹${gst.toFixed(2)}`;
@@ -1921,7 +2267,7 @@ class MTRSApp {
 
                                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid rgba(255, 255, 255, 0.06); flex-wrap: wrap;">
                                     <div style="font-size: 0.88rem; color: var(--text-secondary);">
-                                        📅 <strong>${booking.show_date}</strong> • <strong>${booking.show_time ? this.formatTime12Hour(booking.show_time) : ''}</strong> | 
+                                        📅 <strong>${booking.show_date}</strong> • <strong>${booking.show_time ? this.formatTime12Hour(booking.show_time) : ''}</strong> |
                                         Seats: <strong style="color: var(--accent-gold);">${booking.booked_seat_numbers || (Array.isArray(booking.booked_seat_ids) ? booking.booked_seat_ids.join(', ') : 'N/A')}</strong>
                                     </div>
 

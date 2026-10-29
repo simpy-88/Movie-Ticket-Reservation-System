@@ -61,6 +61,7 @@
             Poster_Hires_Url: row.poster_hires_url || '',
             Backdrop_Url: row.backdrop_url || '',
             tmdb_id: row.tmdb_id || null,
+            Created_At: row.created_at || null,
 
             // Lower-case aliases for backward compatibility
             movie_id: row.movie_id,
@@ -73,7 +74,8 @@
             cast_members: row.cast_members || '',
             poster_url: row.poster_url || '',
             poster_hires_url: row.poster_hires_url || '',
-            backdrop_url: row.backdrop_url || ''
+            backdrop_url: row.backdrop_url || '',
+            created_at: row.created_at || null
         };
     }
 
@@ -244,6 +246,73 @@
             };
         } catch (networkError) {
             console.error('[MTRS Supabase] Network exception while fetching movies:', networkError.message);
+            return {
+                success: false,
+                source: 'LOCAL_FALLBACK',
+                data: null,
+                error: networkError.message
+            };
+        }
+    }
+
+    // Fetch Latest Featured Movies from public.movies for Hero Slideshow
+    // Orders by creation timestamp created_at DESC with reliable fallback to movie_id DESC
+    async function fetchFeaturedMovies(limit = 5) {
+        if (!client) {
+            return {
+                success: false,
+                source: 'LOCAL_FALLBACK',
+                data: null,
+                error: initError ? initError.message : 'Supabase client not initialized'
+            };
+        }
+
+        try {
+            console.log(`[MTRS Supabase] Querying latest ${limit} featured movies from public.movies...`);
+            const startTime = performance.now();
+
+            const { data, error, status } = await client
+                .from('movies')
+                .select('*')
+                .order('created_at', { ascending: false, nullsFirst: false })
+                .order('movie_id', { ascending: false })
+                .limit(limit);
+
+            const elapsed = (performance.now() - startTime).toFixed(1);
+
+            if (error) {
+                console.warn(`[MTRS Supabase] Featured movies query error (HTTP ${status}):`, error.message);
+                return {
+                    success: false,
+                    source: 'LOCAL_FALLBACK',
+                    data: null,
+                    error: error.message,
+                    statusCode: status
+                };
+            }
+
+            if (!Array.isArray(data) || data.length === 0) {
+                return {
+                    success: false,
+                    source: 'LOCAL_FALLBACK',
+                    data: null,
+                    error: 'Empty dataset returned for featured movies'
+                };
+            }
+
+            const mapped = data.map(mapMovieRecord).filter(Boolean);
+            console.log(`[MTRS Supabase] Featured movies query successful (${elapsed}ms). Retrieved ${mapped.length} movies.`);
+
+            return {
+                success: true,
+                source: 'SUPABASE',
+                data: mapped,
+                count: mapped.length,
+                elapsedMs: elapsed,
+                raw: data
+            };
+        } catch (networkError) {
+            console.error('[MTRS Supabase] Network exception while fetching featured movies:', networkError.message);
             return {
                 success: false,
                 source: 'LOCAL_FALLBACK',
@@ -1161,6 +1230,7 @@
         mapSeatRecord: mapSeatRecord,
         // Catalog Fetchers
         fetchMovies: fetchMovies,
+        fetchFeaturedMovies: fetchFeaturedMovies,
         fetchTheaters: fetchTheaters,
         fetchScreens: fetchScreens,
         fetchShows: fetchShows,

@@ -1,21 +1,24 @@
 // ============================================================================
 // MOVIE TICKET RESERVATION SYSTEM (MTRS)
 // File: js/image-store.js
-// Description: Persistent IndexedDB Image Store for Administrator Poster Uploads
+// Description: Persistent IndexedDB Image Store for Posters & Hero Backdrops
 // Provides Blob storage without localStorage size limits or temporary URL expiry.
+// Independently stores portrait posters and widescreen cinematic backdrops.
 // ============================================================================
 
 (function () {
     'use strict';
 
     const DB_NAME = 'MTRS_POSTER_STORE';
-    const DB_VERSION = 1;
-    const STORE_NAME = 'posters';
+    const DB_VERSION = 2; // Version 2: adds independent 'backdrops' store
+    const POSTERS_STORE = 'posters';
+    const BACKDROPS_STORE = 'backdrops';
 
     class MTRSImageStore {
         constructor() {
             this.db = null;
-            this.posterUrls = {}; // Memory cache: movieId -> Object URL
+            this.posterUrls = {};   // Memory cache: movieId -> Object URL (Posters)
+            this.backdropUrls = {}; // Memory cache: movieId -> Object URL (Backdrops)
             this.isReady = false;
             this.initPromise = this.init();
         }
@@ -23,9 +26,9 @@
         async init() {
             if (this.isReady && this.db) return this.db;
 
-            return new Promise((resolve, reject) => {
+            return new Promise((resolve) => {
                 if (!window.indexedDB) {
-                    console.warn('IndexedDB not supported in this browser. Falling back to memory store.');
+                    console.warn('[MTRS ImageStore] IndexedDB not supported. Falling back to in-memory store.');
                     this.isReady = true;
                     resolve(null);
                     return;
@@ -35,20 +38,23 @@
 
                 request.onupgradeneeded = (event) => {
                     const db = event.target.result;
-                    if (!db.objectStoreNames.contains(STORE_NAME)) {
-                        db.createObjectStore(STORE_NAME, { keyPath: 'movieId' });
+                    if (!db.objectStoreNames.contains(POSTERS_STORE)) {
+                        db.createObjectStore(POSTERS_STORE, { keyPath: 'movieId' });
+                    }
+                    if (!db.objectStoreNames.contains(BACKDROPS_STORE)) {
+                        db.createObjectStore(BACKDROPS_STORE, { keyPath: 'movieId' });
                     }
                 };
 
                 request.onsuccess = async (event) => {
                     this.db = event.target.result;
                     this.isReady = true;
-                    await this.preloadAllPosters();
+                    await this.preloadAllImages();
                     resolve(this.db);
                 };
 
                 request.onerror = (event) => {
-                    console.error('Failed to open MTRS IndexedDB poster store:', event.target.error);
+                    console.error('[MTRS ImageStore] Failed to open IndexedDB:', event.target.error);
                     this.isReady = true;
                     resolve(null);
                 };
@@ -56,46 +62,70 @@
         }
 
         /**
-         * Preloads all stored poster Blobs into memory Object URLs for instant synchronous rendering
+         * Preloads all stored poster and backdrop Blobs into memory Object URLs
          */
-        async preloadAllPosters() {
+        async preloadAllImages() {
             if (!this.db) return;
 
+            await Promise.all([
+                this._preloadStore(POSTERS_STORE, this.posterUrls),
+                this._preloadStore(BACKDROPS_STORE, this.backdropUrls)
+            ]);
+
+            // Dispatch legacy and modern events for instant UI synchronization
+            window.dispatchEvent(new CustomEvent('mtrs:posters-loaded', { detail: { posterUrls: this.posterUrls } }));
+            window.dispatchEvent(new CustomEvent('mtrs:artwork-updated', {
+                detail: {
+                    posterUrls: this.posterUrls,
+                    backdropUrls: this.backdropUrls
+                }
+            }));
+        }
+
+        /**
+         * Backward compatibility alias
+         */
+        async preloadAllPosters() {
+            return this.preloadAllImages();
+        }
+
+        _preloadStore(storeName, targetMap) {
             return new Promise((resolve) => {
                 try {
-                    const tx = this.db.transaction(STORE_NAME, 'readonly');
-                    const store = tx.objectStore(STORE_NAME);
+                    if (!this.db || !this.db.objectStoreNames.contains(storeName)) {
+                        resolve();
+                        return;
+                    }
+                    const tx = this.db.transaction(storeName, 'readonly');
+                    const store = tx.objectStore(storeName);
                     const req = store.getAll();
 
                     req.onsuccess = () => {
                         const records = req.result || [];
                         records.forEach(rec => {
                             if (rec && rec.movieId && rec.blob) {
-                                // Revoke old if present
-                                if (this.posterUrls[rec.movieId]) {
-                                    URL.revokeObjectURL(this.posterUrls[rec.movieId]);
+                                if (targetMap[rec.movieId]) {
+                                    URL.revokeObjectURL(targetMap[rec.movieId]);
                                 }
-                                this.posterUrls[rec.movieId] = URL.createObjectURL(rec.blob);
+                                targetMap[rec.movieId] = URL.createObjectURL(rec.blob);
                             }
                         });
-                        // Dispatch event so active views re-render with the original high-resolution uploaded images
-                        window.dispatchEvent(new CustomEvent('mtrs:posters-loaded', { detail: { posterUrls: this.posterUrls } }));
                         resolve();
                     };
 
                     req.onerror = () => {
-                        console.warn('Failed to preload posters from IndexedDB');
+                        console.warn(`[MTRS ImageStore] Failed to preload ${storeName}`);
                         resolve();
                     };
                 } catch (e) {
-                    console.warn('Error reading from IndexedDB:', e);
+                    console.warn(`[MTRS ImageStore] Error preloading ${storeName}:`, e);
                     resolve();
                 }
             });
         }
 
         /**
-         * Returns preloaded Object URL for synchronous rendering
+         * Synchronous getter for preloaded poster Object URL
          */
         getPosterUrl(movieId) {
             if (!movieId) return null;
@@ -103,49 +133,88 @@
         }
 
         /**
-         * Validates and saves an uploaded poster Blob into IndexedDB
+         * Synchronous getter for preloaded backdrop Object URL
          */
-        async savePoster(movieId, fileOrBlob) {
-            if (!movieId) throw new Error('Movie ID is required for saving poster.');
-            if (!fileOrBlob) throw new Error('No image file provided.');
+        getBackdropUrl(movieId) {
+            if (!movieId) return null;
+            return this.backdropUrls[movieId] || null;
+        }
 
-            // Validate file type: JPEG, PNG, WebP
+        hasCustomPoster(movieId) {
+            return !!this.getPosterUrl(movieId);
+        }
+
+        hasCustomBackdrop(movieId) {
+            return !!this.getBackdropUrl(movieId);
+        }
+
+        /**
+         * Validates image file type and maximum size
+         */
+        validateImageFile(fileOrBlob, isBackdrop = false) {
+            if (!fileOrBlob) throw new Error('No image file selected.');
+
             const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-            if (!validTypes.includes(fileOrBlob.type.toLowerCase())) {
-                throw new Error(`Invalid file type (${fileOrBlob.type}). Please upload a JPEG, PNG, or WebP image.`);
+            const fileType = (fileOrBlob.type || '').toLowerCase();
+            if (!validTypes.includes(fileType)) {
+                throw new Error(`Invalid file type "${fileOrBlob.type || 'unknown'}". Please select a JPEG, PNG, or WebP image.`);
             }
 
-            // Validate file size: up to 35 MB to accommodate full 4K uncompressed/lossless posters
-            const maxSize = 35 * 1024 * 1024;
+            // Up to 25 MB to accommodate lossless high-res 4K assets
+            const maxSize = 25 * 1024 * 1024;
             if (fileOrBlob.size > maxSize) {
                 const sizeMB = (fileOrBlob.size / (1024 * 1024)).toFixed(1);
-                throw new Error(`File is too large (${sizeMB} MB). Maximum allowed size is 35 MB.`);
+                throw new Error(`File is too large (${sizeMB} MB). Maximum allowed size is 25 MB.`);
             }
 
-            await this.initPromise;
+            return true;
+        }
 
+        /**
+         * Saves an uploaded portrait poster Blob into IndexedDB
+         */
+        async savePoster(movieId, fileOrBlob) {
+            if (!movieId) throw new Error('Movie ID is required to save poster.');
+            this.validateImageFile(fileOrBlob, false);
+            await this.initPromise;
+            return this._saveRecord(POSTERS_STORE, movieId, fileOrBlob, this.posterUrls);
+        }
+
+        /**
+         * Saves an uploaded landscape backdrop Blob into IndexedDB
+         */
+        async saveBackdrop(movieId, fileOrBlob) {
+            if (!movieId) throw new Error('Movie ID is required to save backdrop.');
+            this.validateImageFile(fileOrBlob, true);
+            await this.initPromise;
+            return this._saveRecord(BACKDROPS_STORE, movieId, fileOrBlob, this.backdropUrls);
+        }
+
+        async _saveRecord(storeName, movieId, fileOrBlob, targetMap) {
             return new Promise((resolve, reject) => {
-                // Revoke old object URL
-                if (this.posterUrls[movieId]) {
-                    URL.revokeObjectURL(this.posterUrls[movieId]);
-                    delete this.posterUrls[movieId];
+                // Revoke previous Object URL for this movie and store
+                if (targetMap[movieId]) {
+                    URL.revokeObjectURL(targetMap[movieId]);
+                    delete targetMap[movieId];
                 }
 
-                // Create fresh object URL
+                // Create fresh Object URL
                 const objectUrl = URL.createObjectURL(fileOrBlob);
-                this.posterUrls[movieId] = objectUrl;
+                targetMap[movieId] = objectUrl;
 
                 if (!this.db) {
-                    // Fallback to memory
+                    window.dispatchEvent(new CustomEvent('mtrs:artwork-updated', {
+                        detail: { movieId, storeName, url: objectUrl }
+                    }));
                     resolve(objectUrl);
                     return;
                 }
 
                 try {
-                    const tx = this.db.transaction(STORE_NAME, 'readwrite');
-                    const store = tx.objectStore(STORE_NAME);
+                    const tx = this.db.transaction(storeName, 'readwrite');
+                    const store = tx.objectStore(storeName);
                     const record = {
-                        movieId: movieId,
+                        movieId: String(movieId).trim(),
                         blob: fileOrBlob,
                         type: fileOrBlob.type,
                         size: fileOrBlob.size,
@@ -153,8 +222,13 @@
                     };
 
                     const req = store.put(record);
-                    req.onsuccess = () => resolve(objectUrl);
-                    req.onerror = (e) => reject(e.target.error || new Error('Failed to save poster in IndexedDB'));
+                    req.onsuccess = () => {
+                        window.dispatchEvent(new CustomEvent('mtrs:artwork-updated', {
+                            detail: { movieId, storeName, url: objectUrl }
+                        }));
+                        resolve(objectUrl);
+                    };
+                    req.onerror = (e) => reject(e.target.error || new Error(`Failed to save ${storeName} to IndexedDB`));
                 } catch (err) {
                     reject(err);
                 }
@@ -162,34 +236,60 @@
         }
 
         /**
-         * Deletes poster from IndexedDB and revokes memory URL
+         * Removes poster from IndexedDB and revokes its memory URL
          */
         async removePoster(movieId) {
             if (!movieId) return;
             await this.initPromise;
+            return this._removeRecord(POSTERS_STORE, movieId, this.posterUrls);
+        }
 
-            if (this.posterUrls[movieId]) {
-                URL.revokeObjectURL(this.posterUrls[movieId]);
-                delete this.posterUrls[movieId];
+        async deletePoster(movieId) {
+            return this.removePoster(movieId);
+        }
+
+        /**
+         * Removes backdrop from IndexedDB and revokes its memory URL
+         */
+        async removeBackdrop(movieId) {
+            if (!movieId) return;
+            await this.initPromise;
+            return this._removeRecord(BACKDROPS_STORE, movieId, this.backdropUrls);
+        }
+
+        async deleteBackdrop(movieId) {
+            return this.removeBackdrop(movieId);
+        }
+
+        async _removeRecord(storeName, movieId, targetMap) {
+            if (targetMap[movieId]) {
+                URL.revokeObjectURL(targetMap[movieId]);
+                delete targetMap[movieId];
             }
 
-            if (!this.db) return;
+            if (!this.db) {
+                window.dispatchEvent(new CustomEvent('mtrs:artwork-updated', {
+                    detail: { movieId, storeName, removed: true }
+                }));
+                return true;
+            }
 
             return new Promise((resolve) => {
                 try {
-                    const tx = this.db.transaction(STORE_NAME, 'readwrite');
-                    const store = tx.objectStore(STORE_NAME);
-                    const req = store.delete(movieId);
-                    req.onsuccess = () => resolve(true);
+                    const tx = this.db.transaction(storeName, 'readwrite');
+                    const store = tx.objectStore(storeName);
+                    const req = store.delete(String(movieId).trim());
+                    req.onsuccess = () => {
+                        window.dispatchEvent(new CustomEvent('mtrs:artwork-updated', {
+                            detail: { movieId, storeName, removed: true }
+                        }));
+                        resolve(true);
+                    };
                     req.onerror = () => resolve(false);
                 } catch (e) {
                     resolve(false);
                 }
             });
-        }
-
-        async deletePoster(movieId) {
-            return this.removePoster(movieId);
         }
     }
 
