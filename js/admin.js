@@ -52,14 +52,28 @@ class MTRSAdminPanel {
         if (tabName === 'relations') this.renderRelationalInspector();
     }
 
+    getMovies() {
+        if (window.App && Array.isArray(window.App.movies) && window.App.movies.length > 0) {
+            return window.App.movies;
+        }
+        return this.engine.getTable('MOVIE') || [];
+    }
+
+    getShows() {
+        if (window.App && Array.isArray(window.App.shows) && window.App.shows.length > 0) {
+            return window.App.shows;
+        }
+        return this.engine.getTable('SHOWS') || [];
+    }
+
     // ------------------------------------------------------------------------
     // DASHBOARD KPI METRICS
     // ------------------------------------------------------------------------
     refreshDashboard() {
         const bookings = this.engine.getTable('BOOKING');
         const payments = this.engine.getTable('PAYMENT');
-        const movies = this.engine.getTable('MOVIE');
-        const shows = this.engine.getTable('SHOWS');
+        const movies = this.getMovies();
+        const shows = this.getShows();
         const screens = this.engine.getTable('SCREEN');
         const bookedSeats = this.engine.getTable('BOOKED_SEAT');
 
@@ -73,9 +87,11 @@ class MTRSAdminPanel {
         const mvEl = document.getElementById('kpi-active-movies');
         const shEl = document.getElementById('kpi-total-shows');
 
+        const activeMovies = movies.filter(m => (m.Status || m.status || 'Active') === 'Active');
+
         if (revEl) revEl.textContent = `₹${totalRev.toFixed(2)}`;
         if (bkEl) bkEl.textContent = bookings.length;
-        if (mvEl) mvEl.textContent = movies.length;
+        if (mvEl) mvEl.textContent = activeMovies.length;
         if (shEl) shEl.textContent = shows.length;
 
         // Refresh currently active tab
@@ -561,8 +577,12 @@ class MTRSAdminPanel {
         const container = document.getElementById('admin-movies-container');
         if (!container) return;
 
-        const movies = this.engine.getTable('MOVIE');
-        const shows = this.engine.getTable('SHOWS');
+        const movies = (window.App && Array.isArray(window.App.movies) && window.App.movies.length > 0)
+            ? window.App.movies
+            : this.engine.getTable('MOVIE');
+        const shows = (window.App && Array.isArray(window.App.shows) && window.App.shows.length > 0)
+            ? window.App.shows
+            : this.engine.getTable('SHOWS');
 
         const q = (this.movieSearchQuery || '').toLowerCase();
         const filtered = movies.filter(m => 
@@ -683,10 +703,70 @@ class MTRSAdminPanel {
         this.renderMoviesTable();
     }
 
+    showModalError(message) {
+        const errorEl = document.getElementById('modal-movie-error-alert');
+        if (errorEl) {
+            errorEl.innerHTML = `<strong>⚠️ Database Write Failed:</strong> ${message}`;
+            errorEl.style.display = 'block';
+            errorEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    }
+
+    clearModalError() {
+        const errorEl = document.getElementById('modal-movie-error-alert');
+        if (errorEl) {
+            errorEl.style.display = 'none';
+            errorEl.innerHTML = '';
+        }
+    }
+
+    async checkAdminAuthNotice() {
+        const noticeEl = document.getElementById('modal-movie-auth-notice');
+        if (!noticeEl) return;
+
+        noticeEl.style.display = 'none';
+        noticeEl.innerHTML = '';
+
+        if (!window.MTRSSupabase || !window.MTRSSupabase.isConfigured) {
+            noticeEl.innerHTML = `<strong>⚠️ Supabase Disconnected:</strong> The application is currently running without an active Supabase client. Central database persistence requires Supabase connection.`;
+            noticeEl.style.display = 'block';
+            return;
+        }
+
+        try {
+            const check = await window.MTRSSupabase.checkIsAdmin();
+            if (!check.isAdmin) {
+                if (check.reason === 'NOT_AUTHENTICATED' || !check.user) {
+                    noticeEl.innerHTML = `
+                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+                            <div>
+                                <strong>🔒 Admin Authentication Required:</strong> You are currently browsing as guest. Central database writes in Supabase are protected by Row Level Security (RLS) and require an authorized administrator session.
+                            </div>
+                            <button type="button" class="btn-secondary" style="padding: 0.25rem 0.65rem; font-size: 0.76rem; color: var(--accent-cyan);" onclick="window.MTRSAdmin.closeMovieModal(); window.App.openAccountModal();">
+                                🔑 Sign In
+                            </button>
+                        </div>
+                    `;
+                    noticeEl.style.display = 'block';
+                } else {
+                    noticeEl.innerHTML = `
+                        <strong>⚠️ Administrator Permissions Required:</strong> Signed in as <em>${check.user.email}</em>, but this user is not registered in <code>public.admin_users</code>. Database inserts and updates will be rejected by PostgreSQL Row Level Security.
+                    `;
+                    noticeEl.style.display = 'block';
+                }
+            } else {
+                noticeEl.style.display = 'none';
+            }
+        } catch (err) {
+            console.warn('[MTRS Admin] checkAdminAuthNotice error:', err);
+        }
+    }
+
     openAddMovieModal() {
         this.currentEditMovieId = null;
         this.pendingPosterBlob = null;
         this.removeCustomPosterRequested = false;
+        this.clearModalError();
 
         document.getElementById('modal-movie-id').value = '';
         document.getElementById('modal-movie-name').value = '';
@@ -710,15 +790,21 @@ class MTRSAdminPanel {
 
         document.getElementById('modal-movie-title-heading').textContent = 'Add New Theatrical Movie';
         document.getElementById('movie-modal').classList.add('active');
+
+        this.checkAdminAuthNotice();
     }
 
     openEditMovieModal(movieId) {
-        const movie = this.engine.getTable('MOVIE').find(m => m.Movie_ID === movieId);
+        const movies = (window.App && Array.isArray(window.App.movies) && window.App.movies.length > 0)
+            ? window.App.movies
+            : this.engine.getTable('MOVIE');
+        const movie = movies.find(m => m.Movie_ID === movieId);
         if (!movie) return;
 
         this.currentEditMovieId = movieId;
         this.pendingPosterBlob = null;
         this.removeCustomPosterRequested = false;
+        this.clearModalError();
 
         document.getElementById('modal-movie-id').value = movie.Movie_ID;
         document.getElementById('modal-movie-name').value = movie.Movie_Name || '';
@@ -750,12 +836,17 @@ class MTRSAdminPanel {
 
         document.getElementById('modal-movie-title-heading').textContent = `Edit Movie — ${movie.Movie_Name} (${movie.Movie_ID})`;
         document.getElementById('movie-modal').classList.add('active');
+
+        this.checkAdminAuthNotice();
     }
 
     closeMovieModal() {
         document.getElementById('movie-modal').classList.remove('active');
         this.pendingPosterBlob = null;
         this.currentEditMovieId = null;
+        this.clearModalError();
+        const noticeEl = document.getElementById('modal-movie-auth-notice');
+        if (noticeEl) noticeEl.style.display = 'none';
     }
 
     handlePosterFileSelected(input) {
@@ -835,44 +926,76 @@ class MTRSAdminPanel {
         const genre = document.getElementById('modal-movie-genre').value.trim();
         const duration = parseInt(document.getElementById('modal-movie-duration').value, 10);
         const language = document.getElementById('modal-movie-language').value.trim();
-        const rating = parseFloat(document.getElementById('modal-movie-rating').value) || 8.0;
+        const rawRating = parseFloat(document.getElementById('modal-movie-rating').value);
+        const rating = !isNaN(rawRating) ? Math.min(10.0, Math.max(0.0, Math.round(rawRating * 10) / 10)) : 0.0;
         const cast = document.getElementById('modal-movie-cast').value.trim();
-        const status = document.getElementById('modal-movie-status').value;
+        const status = document.getElementById('modal-movie-status').value || 'Active';
         const synopsis = document.getElementById('modal-movie-synopsis').value.trim();
         const posterUrl = document.getElementById('modal-movie-poster-url').value.trim();
 
+        // 1. Client-side Form Validation
         if (!name || !genre || isNaN(duration) || duration <= 0 || !language) {
-            window.App.showToast("Please fill in valid Movie Title, Genre, Duration, and Language.", "error");
+            const valMsg = "Please fill in valid Movie Title, Genre, Duration (minutes > 0), and Language.";
+            this.showModalError(valMsg);
+            window.App.showToast(valMsg, "error");
             return;
         }
 
-        const movies = this.engine.getTable('MOVIE');
-        let targetMovieId = this.currentEditMovieId;
+        if (name.length > 100) {
+            const valMsg = "Movie Title cannot exceed 100 characters.";
+            this.showModalError(valMsg);
+            window.App.showToast(valMsg, "error");
+            return;
+        }
 
-        if (targetMovieId) {
-            // Update existing movie record preserving primary key Movie_ID
-            const existing = movies.find(m => m.Movie_ID === targetMovieId);
-            if (existing) {
-                existing.Movie_Name = name;
-                existing.Genre = genre;
-                existing.Duration = duration;
-                existing.Language = language;
-                existing.Rating = rating;
-                existing.Cast = cast;
-                existing.Status = status;
-                existing.Synopsis = synopsis;
+        if (genre.length > 50) {
+            const valMsg = "Genre cannot exceed 50 characters.";
+            this.showModalError(valMsg);
+            window.App.showToast(valMsg, "error");
+            return;
+        }
 
-                if (this.removeCustomPosterRequested) {
-                    existing.Poster_Url = '';
-                } else if (posterUrl) {
-                    existing.Poster_Url = posterUrl;
-                }
+        if (language.length > 30) {
+            const valMsg = "Language cannot exceed 30 characters.";
+            this.showModalError(valMsg);
+            window.App.showToast(valMsg, "error");
+            return;
+        }
+
+        if (rating < 0 || rating > 10) {
+            const valMsg = "Movie rating must be between 0.0 and 10.0.";
+            this.showModalError(valMsg);
+            window.App.showToast(valMsg, "error");
+            return;
+        }
+
+        this.clearModalError();
+
+        // 2. Set saving UI state on button
+        const saveBtn = document.getElementById('btn-save-movie');
+        const originalBtnText = saveBtn ? saveBtn.textContent : 'Save Movie & Poster';
+        if (saveBtn) {
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Saving to Supabase...';
+        }
+
+        const targetMovieId = this.currentEditMovieId;
+
+        // 3. Verify Supabase client connection
+        if (!window.MTRSSupabase || !window.MTRSSupabase.isConfigured) {
+            const connErr = "Supabase client is not initialized. Movies must be persisted to the central database.";
+            this.showModalError(connErr);
+            window.App.showToast(connErr, "error");
+            if (saveBtn) {
+                saveBtn.disabled = false;
+                saveBtn.textContent = originalBtnText;
             }
-        } else {
-            // Register new movie with guaranteed unique ID
-            targetMovieId = this.engine.generateNextMovieId();
-            movies.push({
-                Movie_ID: targetMovieId,
+            return;
+        }
+
+        try {
+            let saveResult;
+            const moviePayload = {
                 Movie_Name: name,
                 Genre: genre,
                 Duration: duration,
@@ -882,68 +1005,124 @@ class MTRSAdminPanel {
                 Status: status,
                 Synopsis: synopsis,
                 Poster_Url: this.removeCustomPosterRequested ? '' : posterUrl
-            });
-        }
+            };
 
-        // Handle persistent IndexedDB image storage for uploaded files
-        if (this.pendingPosterBlob && window.MTRSImageStore) {
-            try {
-                await window.MTRSImageStore.savePoster(targetMovieId, this.pendingPosterBlob);
-            } catch (err) {
-                console.error("Failed to save poster to IndexedDB:", err);
+            if (targetMovieId) {
+                // UPDATE existing movie in Supabase
+                saveResult = await window.MTRSSupabase.updateMovie(targetMovieId, moviePayload);
+            } else {
+                // INSERT new movie into Supabase
+                saveResult = await window.MTRSSupabase.createMovie(moviePayload);
             }
-        } else if (this.removeCustomPosterRequested && window.MTRSImageStore) {
-            await window.MTRSImageStore.deletePoster(targetMovieId);
-        }
 
-        this.engine.save();
-        this.closeMovieModal();
-        window.App.showToast(`Movie "${name}" (${targetMovieId}) saved successfully.`, "success");
+            // 4. Strict Persistence Check: NEVER report success or save locally when Supabase write fails!
+            if (!saveResult || !saveResult.success) {
+                const rawError = saveResult?.error || "Unknown database error";
+                console.error('[MTRS Admin] Supabase movie write failed:', saveResult);
 
-        this.refreshDashboard();
-        if (this.activeAdminTab === 'movies') this.renderMoviesTable();
+                let friendlyMsg = rawError;
+                if (saveResult?.code === '42501' || rawError.toLowerCase().includes('permission denied') || rawError.toLowerCase().includes('violates row-level security')) {
+                    friendlyMsg = `Permission Denied (PostgreSQL RLS 42501): Only authenticated administrators registered in public.admin_users can create or modify movies in the Supabase database. (${rawError})`;
+                } else if (rawError.toLowerCase().includes('failed to fetch')) {
+                    friendlyMsg = `Network Connection Error: Could not reach Supabase cloud endpoint. Please check your network connection and retry.`;
+                }
 
-        // Immediately update customer-facing catalogue and hero banner
-        if (window.App) {
-            window.App.renderMovieGrid();
-            window.App.renderHeroBanner();
+                this.showModalError(friendlyMsg);
+                window.App.showToast(friendlyMsg, "error");
+
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = originalBtnText;
+                }
+                // Keep modal open so administrator does not lose form input
+                return;
+            }
+
+            const savedMovie = saveResult.data;
+            const resolvedMovieId = savedMovie?.Movie_ID || targetMovieId;
+
+            // 5. Handle local custom artwork blob (IndexedDB image cache)
+            if (this.pendingPosterBlob && window.MTRSImageStore && resolvedMovieId) {
+                try {
+                    await window.MTRSImageStore.savePoster(resolvedMovieId, this.pendingPosterBlob);
+                } catch (artErr) {
+                    console.warn('[MTRS Admin] Artwork local cache warning:', artErr);
+                }
+            } else if (this.removeCustomPosterRequested && window.MTRSImageStore && resolvedMovieId) {
+                try {
+                    await window.MTRSImageStore.deletePoster(resolvedMovieId);
+                } catch (artErr) {
+                    console.warn('[MTRS Admin] Artwork local removal warning:', artErr);
+                }
+            }
+
+            // 6. Close Modal
+            this.closeMovieModal();
+
+            // 7. Reload authoritative catalogue from Supabase
+            window.App.showToast(`Movie "${savedMovie.Movie_Name}" (${resolvedMovieId}) persisted to Supabase! Syncing catalogue...`, "info");
+            await window.App.loadCinemaData();
+
+            // 8. Refresh Dashboard and Admin Movies Table
+            this.refreshDashboard();
+            if (this.activeAdminTab === 'movies') this.renderMoviesTable();
+
+            window.App.showToast(`✓ Movie "${savedMovie.Movie_Name}" (${resolvedMovieId}) is now live in central Supabase database!`, "success");
+
+        } catch (err) {
+            console.error('[MTRS Admin] Unexpected exception saving movie:', err);
+            const excMsg = `Unexpected error: ${err.message || 'Operation failed'}`;
+            this.showModalError(excMsg);
+            window.App.showToast(excMsg, "error");
+        } finally {
+            if (saveBtn) {
+                saveBtn.disabled = false;
+                saveBtn.textContent = originalBtnText;
+            }
         }
     }
 
-    deleteOrArchiveMovie(movieId) {
-        const movie = this.engine.getTable('MOVIE').find(m => m.Movie_ID === movieId);
+    async deleteOrArchiveMovie(movieId) {
+        const movies = (window.App && Array.isArray(window.App.movies) && window.App.movies.length > 0)
+            ? window.App.movies
+            : this.engine.getTable('MOVIE');
+        const movie = movies.find(m => m.Movie_ID === movieId);
         if (!movie) return;
 
-        const shows = this.engine.getTable('SHOWS').filter(s => s.Movie_ID === movieId);
+        const shows = (this.engine.getTable('SHOWS') || []).filter(s => s.Movie_ID === movieId);
 
-        if (shows.length > 0) {
-            const proceedArchive = confirm(
-                `Movie "${movie.Movie_Name}" (${movieId}) has ${shows.length} scheduled show(s) and historical booking relations.\n\n` +
-                `Deleting this movie would break foreign keys in SHOWS, BOOKING, and PAYMENT tables.\n\n` +
-                `Safe action: Would you like to Archive this movie instead (mark as Inactive)?`
-            );
-            if (proceedArchive) {
-                movie.Status = 'Archived';
-                this.engine.save();
-                window.App.showToast(`Movie "${movie.Movie_Name}" archived safely.`, "info");
-                this.refreshDashboard();
-                if (this.activeAdminTab === 'movies') this.renderMoviesTable();
-                if (window.App) window.App.renderMovieGrid();
-            }
+        const promptText = shows.length > 0 ?
+            `Movie "${movie.Movie_Name}" (${movieId}) has ${shows.length} scheduled show(s) and historical booking relations.\n\n` +
+            `Deleting this movie would violate foreign key constraints in SHOWS, BOOKINGS, and PAYMENTS.\n\n` +
+            `Safe Action: Would you like to Archive this movie in the central Supabase database? (It will be hidden from the public ticket booking catalogue while fully preserving past customer bookings).` :
+            `Archive movie "${movie.Movie_Name}" (${movieId}) in the central Supabase database?\n\n` +
+            `The movie status will be updated to "Archived" in Supabase public.movies.`;
+
+        if (!confirm(promptText)) return;
+
+        if (!window.MTRSSupabase || !window.MTRSSupabase.isConfigured) {
+            window.App.showToast("Supabase client is not connected.", "error");
             return;
         }
 
-        if (confirm(`Permanently delete movie "${movie.Movie_Name}" (${movieId})? This action cannot be undone.`)) {
-            this.engine.db.MOVIE = this.engine.db.MOVIE.filter(m => m.Movie_ID !== movieId);
-            if (window.MTRSImageStore) {
-                window.MTRSImageStore.deletePoster(movieId);
+        window.App.showToast(`Archiving movie "${movie.Movie_Name}" in Supabase...`, "info");
+
+        const res = await window.MTRSSupabase.archiveMovie(movieId);
+        if (!res || !res.success) {
+            const errMsg = res?.error || "Failed to archive movie in Supabase.";
+            console.error('[MTRS Admin] Archival failed:', res);
+            let friendly = errMsg;
+            if (res?.code === '42501' || errMsg.toLowerCase().includes('permission denied')) {
+                friendly = `Supabase Permission Denied (RLS): Administrator authorization required to archive movies.`;
             }
-            this.engine.save();
-            window.App.showToast(`Movie "${movie.Movie_Name}" deleted.`, "success");
-            this.refreshDashboard();
-            if (this.activeAdminTab === 'movies') this.renderMoviesTable();
-            if (window.App) window.App.renderMovieGrid();
+            window.App.showToast(friendly, "error");
+            return;
         }
+
+        window.App.showToast(`✓ Movie "${movie.Movie_Name}" (${movieId}) archived successfully in Supabase!`, "success");
+        await window.App.loadCinemaData();
+        this.refreshDashboard();
+        if (this.activeAdminTab === 'movies') this.renderMoviesTable();
     }
 
     // ========================================================================

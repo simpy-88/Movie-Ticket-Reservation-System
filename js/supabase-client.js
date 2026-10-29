@@ -55,6 +55,7 @@
             Language: row.language,
             Synopsis: row.synopsis || '',
             Cast: row.cast_members || '',
+            Status: row.status || 'Active',
 
             Poster_Url: row.poster_url || '',
             Poster_URL: row.poster_url || '',
@@ -72,6 +73,7 @@
             language: row.language,
             synopsis: row.synopsis || '',
             cast_members: row.cast_members || '',
+            status: row.status || 'Active',
             poster_url: row.poster_url || '',
             poster_hires_url: row.poster_hires_url || '',
             backdrop_url: row.backdrop_url || '',
@@ -532,6 +534,334 @@
             screens: screensRes.status === 'fulfilled' ? screensRes.value : { success: false, data: null, error: screensRes.reason?.message },
             shows: showsRes.status === 'fulfilled' ? showsRes.value : { success: false, data: null, error: showsRes.reason?.message }
         };
+    }
+
+    // ------------------------------------------------------------------------
+    // 3.5. DATA MUTATION METHODS: MOVIES (Admin Central Database Persistence)
+    // ------------------------------------------------------------------------
+
+    /**
+     * Inserts a new theatrical movie into Supabase public.movies table.
+     * Enforces database columns, constraints, and Row Level Security.
+     * Respects automatic movie_id generation via public.movie_id_seq or explicit ID.
+     */
+    async function createMovie(movieData) {
+        if (!client) {
+            return {
+                success: false,
+                error: initError ? initError.message : 'Supabase client not initialized'
+            };
+        }
+
+        if (!movieData) {
+            return { success: false, error: 'Movie data payload is required.' };
+        }
+
+        const movieName = (movieData.Movie_Name || movieData.movie_name || '').trim();
+        const genre = (movieData.Genre || movieData.genre || '').trim();
+        const duration = parseInt(movieData.Duration || movieData.duration, 10);
+        const language = (movieData.Language || movieData.language || '').trim();
+        const rawRating = parseFloat(movieData.Rating !== undefined ? movieData.Rating : movieData.rating);
+        const rating = !isNaN(rawRating) ? Math.min(10.0, Math.max(0.0, Math.round(rawRating * 10) / 10)) : 0.0;
+        const synopsis = (movieData.Synopsis || movieData.synopsis || '').trim();
+        const castMembers = (movieData.Cast || movieData.cast_members || movieData.cast || '').trim();
+        const posterUrl = (movieData.Poster_Url || movieData.poster_url || movieData.Poster_URL || '').trim();
+        const posterHiresUrl = (movieData.Poster_Hires_Url || movieData.poster_hires_url || '').trim();
+        const backdropUrl = (movieData.Backdrop_Url || movieData.backdrop_url || '').trim();
+        const status = movieData.Status || movieData.status || 'Active';
+
+        // Validation against schema constraints
+        if (!movieName) {
+            return { success: false, error: 'Movie title is required.' };
+        }
+        if (movieName.length > 100) {
+            return { success: false, error: 'Movie title exceeds maximum length of 100 characters.' };
+        }
+        if (!genre) {
+            return { success: false, error: 'Genre is required.' };
+        }
+        if (genre.length > 50) {
+            return { success: false, error: 'Genre exceeds maximum length of 50 characters.' };
+        }
+        if (isNaN(duration) || duration <= 0) {
+            return { success: false, error: 'Duration must be a positive integer in minutes.' };
+        }
+        if (!language) {
+            return { success: false, error: 'Language is required.' };
+        }
+        if (language.length > 30) {
+            return { success: false, error: 'Language exceeds maximum length of 30 characters.' };
+        }
+        if (!['Active', 'Archived'].includes(status)) {
+            return { success: false, error: 'Status must be either "Active" or "Archived".' };
+        }
+
+        const insertPayload = {
+            movie_name: movieName,
+            genre: genre,
+            duration: duration,
+            language: language,
+            rating: rating,
+            synopsis: synopsis,
+            cast_members: castMembers,
+            poster_url: posterUrl,
+            poster_hires_url: posterHiresUrl || posterUrl,
+            backdrop_url: backdropUrl,
+            status: status
+        };
+
+        const explicitId = (movieData.Movie_ID || movieData.movie_id || '').trim();
+        if (explicitId) {
+            insertPayload.movie_id = explicitId;
+        }
+
+        try {
+            console.log('[MTRS Supabase] Inserting movie into public.movies:', insertPayload);
+            const startTime = performance.now();
+
+            const { data, error, status: httpStatus } = await client
+                .from('movies')
+                .insert([insertPayload])
+                .select();
+
+            const elapsed = (performance.now() - startTime).toFixed(1);
+
+            if (error) {
+                console.error(`[MTRS Supabase] Error inserting movie (HTTP ${httpStatus}):`, error);
+                return {
+                    success: false,
+                    error: error.message,
+                    code: error.code,
+                    details: error.details,
+                    hint: error.hint,
+                    statusCode: httpStatus
+                };
+            }
+
+            if (!Array.isArray(data) || data.length === 0) {
+                return {
+                    success: false,
+                    error: 'Insert succeeded in database, but no record was returned by select.'
+                };
+            }
+
+            const mapped = mapMovieRecord(data[0]);
+            console.log(`[MTRS Supabase] Movie "${mapped.Movie_Name}" (${mapped.Movie_ID}) inserted successfully in ${elapsed}ms.`);
+
+            return {
+                success: true,
+                data: mapped,
+                raw: data[0],
+                elapsedMs: elapsed
+            };
+        } catch (err) {
+            console.error('[MTRS Supabase] Network exception while inserting movie:', err);
+            return {
+                success: false,
+                error: err.message
+            };
+        }
+    }
+
+    /**
+     * Updates an existing movie record in Supabase public.movies.
+     */
+    async function updateMovie(movieId, movieData) {
+        if (!client) {
+            return {
+                success: false,
+                error: initError ? initError.message : 'Supabase client not initialized'
+            };
+        }
+
+        if (!movieId) {
+            return { success: false, error: 'Target Movie ID is required for update.' };
+        }
+
+        const updatePayload = {};
+
+        if (movieData.Movie_Name !== undefined || movieData.movie_name !== undefined) {
+            updatePayload.movie_name = (movieData.Movie_Name || movieData.movie_name || '').trim();
+        }
+        if (movieData.Genre !== undefined || movieData.genre !== undefined) {
+            updatePayload.genre = (movieData.Genre || movieData.genre || '').trim();
+        }
+        if (movieData.Duration !== undefined || movieData.duration !== undefined) {
+            const dur = parseInt(movieData.Duration || movieData.duration, 10);
+            if (!isNaN(dur) && dur > 0) updatePayload.duration = dur;
+        }
+        if (movieData.Language !== undefined || movieData.language !== undefined) {
+            updatePayload.language = (movieData.Language || movieData.language || '').trim();
+        }
+        if (movieData.Rating !== undefined || movieData.rating !== undefined) {
+            const rawRt = parseFloat(movieData.Rating !== undefined ? movieData.Rating : movieData.rating);
+            if (!isNaN(rawRt)) updatePayload.rating = Math.min(10.0, Math.max(0.0, Math.round(rawRt * 10) / 10));
+        }
+        if (movieData.Synopsis !== undefined || movieData.synopsis !== undefined) {
+            updatePayload.synopsis = (movieData.Synopsis !== undefined ? movieData.Synopsis : movieData.synopsis || '').trim();
+        }
+        if (movieData.Cast !== undefined || movieData.cast_members !== undefined || movieData.cast !== undefined) {
+            updatePayload.cast_members = (movieData.Cast !== undefined ? movieData.Cast : (movieData.cast_members || movieData.cast || '')).trim();
+        }
+        if (movieData.Poster_Url !== undefined || movieData.poster_url !== undefined) {
+            updatePayload.poster_url = (movieData.Poster_Url !== undefined ? movieData.Poster_Url : (movieData.poster_url || '')).trim();
+        }
+        if (movieData.Poster_Hires_Url !== undefined || movieData.poster_hires_url !== undefined) {
+            updatePayload.poster_hires_url = (movieData.Poster_Hires_Url !== undefined ? movieData.Poster_Hires_Url : (movieData.poster_hires_url || '')).trim();
+        }
+        if (movieData.Backdrop_Url !== undefined || movieData.backdrop_url !== undefined) {
+            updatePayload.backdrop_url = (movieData.Backdrop_Url !== undefined ? movieData.Backdrop_Url : (movieData.backdrop_url || '')).trim();
+        }
+        if (movieData.Status !== undefined || movieData.status !== undefined) {
+            const st = movieData.Status || movieData.status;
+            if (['Active', 'Archived'].includes(st)) updatePayload.status = st;
+        }
+
+        try {
+            console.log(`[MTRS Supabase] Updating movie ${movieId} in public.movies:`, updatePayload);
+            const startTime = performance.now();
+
+            const { data, error, status: httpStatus } = await client
+                .from('movies')
+                .update(updatePayload)
+                .eq('movie_id', movieId)
+                .select();
+
+            const elapsed = (performance.now() - startTime).toFixed(1);
+
+            if (error) {
+                console.error(`[MTRS Supabase] Error updating movie ${movieId} (HTTP ${httpStatus}):`, error);
+                return {
+                    success: false,
+                    error: error.message,
+                    code: error.code,
+                    details: error.details,
+                    hint: error.hint,
+                    statusCode: httpStatus
+                };
+            }
+
+            if (!Array.isArray(data) || data.length === 0) {
+                return {
+                    success: false,
+                    error: `Movie "${movieId}" not found in database or update was not permitted by RLS.`
+                };
+            }
+
+            const mapped = mapMovieRecord(data[0]);
+            console.log(`[MTRS Supabase] Movie ${movieId} updated successfully in ${elapsed}ms.`);
+
+            return {
+                success: true,
+                data: mapped,
+                raw: data[0],
+                elapsedMs: elapsed
+            };
+        } catch (err) {
+            console.error(`[MTRS Supabase] Network exception while updating movie ${movieId}:`, err);
+            return {
+                success: false,
+                error: err.message
+            };
+        }
+    }
+
+    /**
+     * Safely archives a movie in Supabase public.movies without deleting historical data.
+     * Uses sp_admin_set_movie_status procedure with fallback to direct status update.
+     */
+    async function archiveMovie(movieId) {
+        if (!client) {
+            return {
+                success: false,
+                error: initError ? initError.message : 'Supabase client not initialized'
+            };
+        }
+
+        if (!movieId) {
+            return { success: false, error: 'Target Movie ID is required.' };
+        }
+
+        try {
+            console.log(`[MTRS Supabase] Archiving movie ${movieId}...`);
+
+            // Try stored procedure sp_admin_set_movie_status first
+            const { data: rpcData, error: rpcError } = await client.rpc('sp_admin_set_movie_status', {
+                p_movie_id: movieId,
+                p_status: 'Archived'
+            });
+
+            if (!rpcError && rpcData && rpcData.success) {
+                console.log(`[MTRS Supabase] Movie ${movieId} successfully archived via sp_admin_set_movie_status.`);
+                return { success: true, data: rpcData };
+            }
+
+            // Fallback to update if procedure call returned error or was not available
+            console.log(`[MTRS Supabase] Stored procedure unavailable or returned: ${rpcError ? rpcError.message : 'unknown'}. Attempting direct update...`);
+            const { data, error } = await client
+                .from('movies')
+                .update({ status: 'Archived' })
+                .eq('movie_id', movieId)
+                .select();
+
+            if (error) {
+                console.error(`[MTRS Supabase] Error archiving movie ${movieId}:`, error);
+                return {
+                    success: false,
+                    error: error.message,
+                    code: error.code
+                };
+            }
+
+            if (!Array.isArray(data) || data.length === 0) {
+                return {
+                    success: false,
+                    error: `Movie "${movieId}" not found in database or archive operation was denied by RLS.`
+                };
+            }
+
+            return {
+                success: true,
+                data: mapMovieRecord(data[0])
+            };
+        } catch (err) {
+            console.error(`[MTRS Supabase] Exception archiving movie ${movieId}:`, err);
+            return {
+                success: false,
+                error: err.message
+            };
+        }
+    }
+
+    /**
+     * Checks if current Supabase user is an administrator via is_admin() RPC.
+     */
+    async function checkIsAdmin() {
+        if (!client) {
+            return { success: false, isAdmin: false, error: 'Supabase client not initialized' };
+        }
+
+        try {
+            const { session, user } = await getCurrentSession();
+            if (!session || !user) {
+                return { success: true, isAdmin: false, user: null, reason: 'NOT_AUTHENTICATED' };
+            }
+
+            const { data, error } = await client.rpc('is_admin');
+            if (error) {
+                console.warn('[MTRS Supabase] is_admin RPC check warning:', error.message);
+                return { success: false, isAdmin: false, user: user, error: error.message };
+            }
+
+            return {
+                success: true,
+                isAdmin: !!data,
+                user: user
+            };
+        } catch (err) {
+            console.error('[MTRS Supabase] checkIsAdmin exception:', err);
+            return { success: false, isAdmin: false, error: err.message };
+        }
     }
 
     // ------------------------------------------------------------------------
@@ -1235,6 +1565,11 @@
         fetchScreens: fetchScreens,
         fetchShows: fetchShows,
         fetchCinemaSystem: fetchCinemaSystem,
+        // Catalog Mutations: Central Database Operations
+        createMovie: createMovie,
+        updateMovie: updateMovie,
+        archiveMovie: archiveMovie,
+        checkIsAdmin: checkIsAdmin,
         // Screen & Telemetry Management
         updateScreenCapacity: updateScreenCapacity,
         fetchPhysicalSeatCounts: fetchPhysicalSeatCounts,

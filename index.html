@@ -762,6 +762,10 @@
                 Configure movie metadata and upload custom local theatrical artwork.
             </p>
 
+            <!-- Dynamic Supabase Status & Error Notifications -->
+            <div id="modal-movie-auth-notice" style="display: none; background: rgba(234, 179, 8, 0.12); border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 6px; padding: 0.75rem 1rem; color: #fde047; font-size: 0.82rem; margin-bottom: 1rem; line-height: 1.45;"></div>
+            <div id="modal-movie-error-alert" style="display: none; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 6px; padding: 0.75rem 1rem; color: #fca5a5; font-size: 0.82rem; margin-bottom: 1rem; line-height: 1.45;"></div>
+
             <form id="form-movie-manage" onsubmit="event.preventDefault(); window.MTRSAdmin.saveMovie();">
                 <input type="hidden" id="modal-movie-id" value="">
 

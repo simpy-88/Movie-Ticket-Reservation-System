@@ -932,6 +932,11 @@ class MTRSApp {
         const shows = this.shows || this.engine.getTable('SHOWS');
 
         const filtered = movies.filter(movie => {
+            // Filter out archived movies from customer browsing view
+            if (movie.Status === 'Archived' || movie.status === 'Archived') {
+                return false;
+            }
+
             // Search query filter
             const matchesSearch = !this.searchQuery ||
                 movie.Movie_Name.toLowerCase().includes(this.searchQuery) ||
