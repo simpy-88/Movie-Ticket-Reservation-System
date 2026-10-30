@@ -256,17 +256,26 @@
             // ----------------------------------------------------------------
             const hasUploadedPoster = window.MTRSImageStore && window.MTRSImageStore.hasCustomPoster(movieId);
             const hasConfiguredPoster = window.MTRSPosters && !!window.MTRSPosters.getCustomPoster(movieId);
+            const dbPoster = movie.Poster_Hires_Url || movie.Poster_Url || movie.poster_url || '';
 
             let posterSrc = '';
             let posterBadgeHtml = '';
 
             if (this.pendingPosterPreviewUrl) {
                 posterSrc = this.pendingPosterPreviewUrl;
-                posterBadgeHtml = `<span class="art-badge art-badge-staged">● Pending Save (Staged)</span>`;
+                posterBadgeHtml = `<span class="art-badge art-badge-staged">● Pending Upload (Staged)</span>`;
+                if (this.dom.btnResetPoster) this.dom.btnResetPoster.style.display = 'inline-flex';
+            } else if (dbPoster) {
+                posterSrc = window.MTRSPosters ? window.MTRSPosters.resolvePoster(movie, { size: 'w780' }) : dbPoster;
+                if (dbPoster.includes('movie-artwork') || dbPoster.includes('supabase.co/storage')) {
+                    posterBadgeHtml = `<span class="art-badge art-badge-uploaded" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border-color: rgba(16, 185, 129, 0.4);">✓ Cloud Synced (Supabase Storage)</span>`;
+                } else {
+                    posterBadgeHtml = `<span class="art-badge art-badge-uploaded">✓ Database Linked URL</span>`;
+                }
                 if (this.dom.btnResetPoster) this.dom.btnResetPoster.style.display = 'inline-flex';
             } else if (hasUploadedPoster) {
                 posterSrc = window.MTRSImageStore.getPosterUrl(movieId);
-                posterBadgeHtml = `<span class="art-badge art-badge-uploaded">✓ Custom Upload (IndexedDB)</span>`;
+                posterBadgeHtml = `<span class="art-badge art-badge-config">💾 Local Cache (IndexedDB)</span>`;
                 if (this.dom.btnResetPoster) this.dom.btnResetPoster.style.display = 'inline-flex';
             } else if (hasConfiguredPoster) {
                 posterSrc = window.MTRSPosters.getCustomPoster(movieId);
@@ -274,7 +283,7 @@
                 if (this.dom.btnResetPoster) this.dom.btnResetPoster.style.display = 'inline-flex';
             } else {
                 posterSrc = window.MTRSPosters ? 
-                    window.MTRSPosters.resolvePoster(movie, { size: 'w780' }) : (movie.Poster_Url || '');
+                    window.MTRSPosters.resolvePoster(movie, { size: 'w780' }) : '';
                 posterBadgeHtml = `<span class="art-badge art-badge-default">Official Artwork / Default</span>`;
                 if (this.dom.btnResetPoster) this.dom.btnResetPoster.style.display = 'none';
             }
@@ -292,17 +301,26 @@
             // ----------------------------------------------------------------
             const hasUploadedBackdrop = window.MTRSImageStore && window.MTRSImageStore.hasCustomBackdrop(movieId);
             const hasConfiguredBackdrop = window.MTRSPosters && !!window.MTRSPosters.getCustomBackdrop(movieId);
+            const dbBackdrop = movie.Backdrop_Url || movie.backdrop_url || '';
 
             let backdropSrc = '';
             let backdropBadgeHtml = '';
 
             if (this.pendingBackdropPreviewUrl) {
                 backdropSrc = this.pendingBackdropPreviewUrl;
-                backdropBadgeHtml = `<span class="art-badge art-badge-staged">● Pending Save (Staged)</span>`;
+                backdropBadgeHtml = `<span class="art-badge art-badge-staged">● Pending Upload (Staged)</span>`;
+                if (this.dom.btnResetBackdrop) this.dom.btnResetBackdrop.style.display = 'inline-flex';
+            } else if (dbBackdrop) {
+                backdropSrc = window.MTRSPosters ? window.MTRSPosters.resolveBackdrop(movie, { size: 'w1280' }) : dbBackdrop;
+                if (dbBackdrop.includes('movie-artwork') || dbBackdrop.includes('supabase.co/storage')) {
+                    backdropBadgeHtml = `<span class="art-badge art-badge-uploaded" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border-color: rgba(16, 185, 129, 0.4);">✓ Cloud Synced (Supabase Storage)</span>`;
+                } else {
+                    backdropBadgeHtml = `<span class="art-badge art-badge-uploaded">✓ Database Linked URL</span>`;
+                }
                 if (this.dom.btnResetBackdrop) this.dom.btnResetBackdrop.style.display = 'inline-flex';
             } else if (hasUploadedBackdrop) {
                 backdropSrc = window.MTRSImageStore.getBackdropUrl(movieId);
-                backdropBadgeHtml = `<span class="art-badge art-badge-uploaded">✓ Custom Upload (IndexedDB)</span>`;
+                backdropBadgeHtml = `<span class="art-badge art-badge-config">💾 Local Cache (IndexedDB)</span>`;
                 if (this.dom.btnResetBackdrop) this.dom.btnResetBackdrop.style.display = 'inline-flex';
             } else if (hasConfiguredBackdrop) {
                 backdropSrc = window.MTRSPosters.getCustomBackdrop(movieId);
@@ -310,7 +328,7 @@
                 if (this.dom.btnResetBackdrop) this.dom.btnResetBackdrop.style.display = 'inline-flex';
             } else {
                 backdropSrc = window.MTRSPosters ? 
-                    window.MTRSPosters.resolveBackdrop(movie, { size: 'w1280' }) : (movie.Backdrop_Url || '');
+                    window.MTRSPosters.resolveBackdrop(movie, { size: 'w1280' }) : '';
                 backdropBadgeHtml = `<span class="art-badge art-badge-default">Official Artwork / Default</span>`;
                 if (this.dom.btnResetBackdrop) this.dom.btnResetBackdrop.style.display = 'none';
             }
@@ -326,9 +344,6 @@
             this.updateSaveButton();
         }
 
-        /**
-         * Renders an image or SVG into the preview box
-         */
         renderImageIntoContainer(container, src, alt, type = 'portrait') {
             if (!container) return;
 
@@ -461,26 +476,123 @@
                 return;
             }
 
+            // 1. Verify admin authorization
+            if (!window.MTRSSupabase || !window.MTRSSupabase.isConfigured) {
+                this.showStatus('Supabase client not initialized. Cannot upload shared artwork.', 'error');
+                return;
+            }
+
             this.isSaving = true;
             this.updateSaveButton();
 
+            const adminCheck = await window.MTRSSupabase.checkIsAdmin();
+            if (!adminCheck.success || !adminCheck.isAdmin) {
+                this.isSaving = false;
+                this.updateSaveButton();
+                const errMsg = 'Admin authorization required: Only authenticated administrators registered in public.admin_users can save shared artwork to Supabase Storage.';
+                this.showStatus(errMsg, 'error');
+                if (window.App && typeof window.App.showToast === 'function') {
+                    window.App.showToast('Admin authorization required to upload shared artwork.', 'error');
+                }
+                return;
+            }
+
             const movie = this.findMovie(this.selectedMovieId);
             const savedItems = [];
+            const newlyUploadedFiles = [];
+            const updatePayload = {};
 
             try {
-                // Save Poster
+                // 2. Upload Poster to Supabase Storage if staged
                 if (this.pendingPosterFile) {
-                    await window.MTRSImageStore.savePoster(this.selectedMovieId, this.pendingPosterFile);
+                    this.showStatus('Uploading theatrical poster to Supabase Storage...', 'info');
+                    const uploadRes = await window.MTRSSupabase.uploadArtworkFile({
+                        file: this.pendingPosterFile,
+                        folder: 'posters',
+                        movieId: this.selectedMovieId
+                    });
+
+                    if (!uploadRes.success) {
+                        throw new Error(`Poster upload failed: ${uploadRes.error}`);
+                    }
+
+                    updatePayload.poster_url = uploadRes.publicUrl;
+                    updatePayload.poster_hires_url = uploadRes.publicUrl;
+                    newlyUploadedFiles.push(uploadRes.path);
                     savedItems.push('Theatrical Poster');
+
+                    // Cache locally in IndexedDB as immediate cache
+                    try {
+                        await window.MTRSImageStore.savePoster(this.selectedMovieId, this.pendingPosterFile);
+                    } catch (e) {}
                 }
 
-                // Save Backdrop
+                // 3. Upload Backdrop to Supabase Storage if staged
                 if (this.pendingBackdropFile) {
-                    await window.MTRSImageStore.saveBackdrop(this.selectedMovieId, this.pendingBackdropFile);
+                    this.showStatus('Uploading cinematic hero backdrop to Supabase Storage...', 'info');
+                    const uploadRes = await window.MTRSSupabase.uploadArtworkFile({
+                        file: this.pendingBackdropFile,
+                        folder: 'backdrops',
+                        movieId: this.selectedMovieId
+                    });
+
+                    if (!uploadRes.success) {
+                        // Clean up already uploaded poster to prevent orphans
+                        const cleanupFailures = [];
+                        for (const f of newlyUploadedFiles) {
+                            const delRes = await window.MTRSSupabase.deleteArtworkFile(f);
+                            if (!delRes || !delRes.success) cleanupFailures.push(f);
+                        }
+                        newlyUploadedFiles.length = 0;
+                        let errMsg = `Hero backdrop upload failed: ${uploadRes.error}`;
+                        if (cleanupFailures.length > 0) {
+                            errMsg += ` (Warning: Storage cleanup failed for orphaned files: ${cleanupFailures.join(', ')}. Please delete manually in Supabase Storage.)`;
+                        }
+                        throw new Error(errMsg);
+                    }
+
+                    updatePayload.backdrop_url = uploadRes.publicUrl;
+                    newlyUploadedFiles.push(uploadRes.path);
                     savedItems.push('Cinematic Hero Backdrop');
+
+                    // Cache locally in IndexedDB as immediate cache
+                    try {
+                        await window.MTRSImageStore.saveBackdrop(this.selectedMovieId, this.pendingBackdropFile);
+                    } catch (e) {}
                 }
 
-                // Discard staging
+                // 4. Update Central Database Record in Supabase
+                this.showStatus('Updating movie artwork URLs in Supabase database...', 'info');
+                const updateRes = await window.MTRSSupabase.updateMovie(this.selectedMovieId, updatePayload);
+
+                if (!updateRes || !updateRes.success) {
+                    // Compensating cleanup of uploaded files to prevent orphaned storage objects
+                    const cleanupFailures = [];
+                    let cleanupSuccessCount = 0;
+                    for (const f of newlyUploadedFiles) {
+                        const delRes = await window.MTRSSupabase.deleteArtworkFile(f);
+                        if (!delRes || !delRes.success) {
+                            cleanupFailures.push(f);
+                        } else {
+                            cleanupSuccessCount++;
+                        }
+                    }
+                    newlyUploadedFiles.length = 0;
+                    let errMsg = `Database record update failed: ${updateRes?.error || 'Unknown error'}`;
+                    if (cleanupFailures.length > 0) {
+                        errMsg += ` (Warning: Storage cleanup could not confirm deletion of orphaned files: ${cleanupFailures.join(', ')}. Please delete manually in Supabase Storage.)`;
+                    } else if (cleanupSuccessCount > 0) {
+                        errMsg += ` (Compensating rollback confirmed deletion of uploaded storage file(s).)`;
+                    }
+                    throw new Error(errMsg);
+                }
+
+                // 5. Reload Central Movie Catalogue
+                if (window.App && typeof window.App.loadCinemaData === 'function') {
+                    await window.App.loadCinemaData();
+                }
+
+                // 6. Clean up Staging & Reset View
                 if (this.pendingPosterPreviewUrl) {
                     URL.revokeObjectURL(this.pendingPosterPreviewUrl);
                     this.pendingPosterPreviewUrl = null;
@@ -498,34 +610,59 @@
 
                 this.refreshView();
 
-                // Show success feedback
-                const msg = `✓ Successfully saved ${savedItems.join(' and ')} for "${movie.Movie_Name}" to persistent IndexedDB storage!`;
+                // 7. Success Feedback
+                const msg = `✓ Successfully uploaded ${savedItems.join(' and ')} for "${movie.Movie_Name}" to Supabase Storage and updated central database!`;
                 this.showStatus(msg, 'success');
 
                 if (window.App && typeof window.App.showToast === 'function') {
-                    window.App.showToast(`Artwork updated for ${movie.Movie_Name}`, 'success');
+                    window.App.showToast(`Artwork live on cloud for ${movie.Movie_Name}`, 'success');
                 }
+
             } catch (err) {
                 console.error('[MTRS ArtworkManager] Error saving artwork:', err);
-                this.showStatus(`Failed to save artwork: ${err.message}`, 'error');
+                let extraWarning = '';
+                if (newlyUploadedFiles && newlyUploadedFiles.length > 0) {
+                    const cleanupFailures = [];
+                    for (const f of newlyUploadedFiles) {
+                        try {
+                            const delRes = await window.MTRSSupabase.deleteArtworkFile(f);
+                            if (!delRes || !delRes.success) cleanupFailures.push(f);
+                        } catch (e) {
+                            cleanupFailures.push(f);
+                        }
+                    }
+                    if (cleanupFailures.length > 0) {
+                        extraWarning = ` (Warning: Storage cleanup failed for orphaned files: ${cleanupFailures.join(', ')}. Please delete manually in Supabase Storage.)`;
+                    }
+                }
+                this.showStatus(`Failed to save artwork: ${err.message}${extraWarning}`, 'error');
             } finally {
                 this.isSaving = false;
                 this.updateSaveButton();
             }
         }
 
-        /**
-         * Resets custom poster for current movie (restores default fallback)
-         */
         async resetPoster() {
             if (!this.selectedMovieId) return;
             const movie = this.findMovie(this.selectedMovieId);
 
-            const confirmed = confirm(`Reset custom poster for "${movie.Movie_Name}"?\nThis will restore the original theatrical card artwork.`);
+            const confirmed = confirm(`Reset custom poster for "${movie.Movie_Name}"?\nThis will restore the original theatrical card artwork and update the database.`);
             if (!confirmed) return;
 
+            // Check admin authorization
+            if (!window.MTRSSupabase || !window.MTRSSupabase.isConfigured) {
+                this.showStatus('Supabase client not initialized.', 'error');
+                return;
+            }
+
+            const adminCheck = await window.MTRSSupabase.checkIsAdmin();
+            if (!adminCheck.success || !adminCheck.isAdmin) {
+                this.showStatus('Admin authorization required to reset artwork in database.', 'error');
+                return;
+            }
+
             try {
-                // Cancel any pending staged poster
+                // Cancel pending staged poster
                 if (this.pendingPosterPreviewUrl) {
                     URL.revokeObjectURL(this.pendingPosterPreviewUrl);
                     this.pendingPosterPreviewUrl = null;
@@ -538,9 +675,24 @@
                     await window.MTRSImageStore.removePoster(this.selectedMovieId);
                 }
 
-                // Clear any manual localStorage override
+                // Clear manual localStorage override
                 if (window.MTRSPosters && typeof window.MTRSPosters.setCustomPoster === 'function') {
                     window.MTRSPosters.setCustomPoster(this.selectedMovieId, '');
+                }
+
+                // Determine official registry poster if any (e.g. M01-M06)
+                const rec = window.MTRSPosters ? window.MTRSPosters.findRecord(this.selectedMovieId) : null;
+                const defaultPoster = rec ? (rec.posterUrl || rec.posterHiRes || '') : '';
+                const defaultPosterHiRes = rec ? (rec.posterHiRes || rec.posterUrl || '') : '';
+
+                // Update database
+                await window.MTRSSupabase.updateMovie(this.selectedMovieId, {
+                    poster_url: defaultPoster,
+                    poster_hires_url: defaultPosterHiRes
+                });
+
+                if (window.App && typeof window.App.loadCinemaData === 'function') {
+                    await window.App.loadCinemaData();
                 }
 
                 this.refreshView();
@@ -555,18 +707,27 @@
             }
         }
 
-        /**
-         * Resets custom backdrop for current movie (restores default fallback)
-         */
         async resetBackdrop() {
             if (!this.selectedMovieId) return;
             const movie = this.findMovie(this.selectedMovieId);
 
-            const confirmed = confirm(`Reset custom backdrop for "${movie.Movie_Name}"?\nThis will restore the original cinematic hero background.`);
+            const confirmed = confirm(`Reset custom backdrop for "${movie.Movie_Name}"?\nThis will restore the original cinematic hero background and update the database.`);
             if (!confirmed) return;
 
+            // Check admin authorization
+            if (!window.MTRSSupabase || !window.MTRSSupabase.isConfigured) {
+                this.showStatus('Supabase client not initialized.', 'error');
+                return;
+            }
+
+            const adminCheck = await window.MTRSSupabase.checkIsAdmin();
+            if (!adminCheck.success || !adminCheck.isAdmin) {
+                this.showStatus('Admin authorization required to reset artwork in database.', 'error');
+                return;
+            }
+
             try {
-                // Cancel any pending staged backdrop
+                // Cancel pending staged backdrop
                 if (this.pendingBackdropPreviewUrl) {
                     URL.revokeObjectURL(this.pendingBackdropPreviewUrl);
                     this.pendingBackdropPreviewUrl = null;
@@ -579,9 +740,22 @@
                     await window.MTRSImageStore.removeBackdrop(this.selectedMovieId);
                 }
 
-                // Clear any manual localStorage override
+                // Clear manual localStorage override
                 if (window.MTRSPosters && typeof window.MTRSPosters.setCustomBackdrop === 'function') {
                     window.MTRSPosters.setCustomBackdrop(this.selectedMovieId, '');
+                }
+
+                // Determine official registry backdrop if any (e.g. M01-M06)
+                const rec = window.MTRSPosters ? window.MTRSPosters.findRecord(this.selectedMovieId) : null;
+                const defaultBackdrop = rec ? (rec.backdropUrl || '') : '';
+
+                // Update database
+                await window.MTRSSupabase.updateMovie(this.selectedMovieId, {
+                    backdrop_url: defaultBackdrop
+                });
+
+                if (window.App && typeof window.App.loadCinemaData === 'function') {
+                    await window.App.loadCinemaData();
                 }
 
                 this.refreshView();

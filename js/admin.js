@@ -765,7 +765,9 @@ class MTRSAdminPanel {
     openAddMovieModal() {
         this.currentEditMovieId = null;
         this.pendingPosterBlob = null;
+        this.pendingBackdropBlob = null;
         this.removeCustomPosterRequested = false;
+        this.removeCustomBackdropRequested = false;
         this.clearModalError();
 
         document.getElementById('modal-movie-id').value = '';
@@ -777,16 +779,30 @@ class MTRSAdminPanel {
         document.getElementById('modal-movie-cast').value = '';
         document.getElementById('modal-movie-status').value = 'Active';
         document.getElementById('modal-movie-synopsis').value = '';
+
+        // Reset Poster Controls
         document.getElementById('modal-movie-poster-url').value = '';
         document.getElementById('modal-poster-file-input').value = '';
-        document.getElementById('modal-poster-error-msg').style.display = 'none';
+        const posterErr = document.getElementById('modal-poster-error-msg');
+        if (posterErr) posterErr.style.display = 'none';
 
-        const previewImg = document.getElementById('modal-poster-preview-img');
-        const previewPlaceholder = document.getElementById('modal-poster-preview-placeholder');
-        previewImg.src = '';
-        previewImg.style.display = 'none';
-        previewPlaceholder.style.display = 'block';
-        previewPlaceholder.textContent = 'No Poster Selected';
+        const previewPosterImg = document.getElementById('modal-poster-preview-img');
+        const previewPosterPlaceholder = document.getElementById('modal-poster-preview-placeholder');
+        if (previewPosterImg) { previewPosterImg.src = ''; previewPosterImg.style.display = 'none'; }
+        if (previewPosterPlaceholder) { previewPosterPlaceholder.style.display = 'block'; previewPosterPlaceholder.textContent = 'No Poster Selected'; }
+
+        // Reset Backdrop Controls
+        const backdropUrlInput = document.getElementById('modal-movie-backdrop-url');
+        if (backdropUrlInput) backdropUrlInput.value = '';
+        const backdropFileInput = document.getElementById('modal-backdrop-file-input');
+        if (backdropFileInput) backdropFileInput.value = '';
+        const backdropErr = document.getElementById('modal-backdrop-error-msg');
+        if (backdropErr) backdropErr.style.display = 'none';
+
+        const previewBackdropImg = document.getElementById('modal-backdrop-preview-img');
+        const previewBackdropPlaceholder = document.getElementById('modal-backdrop-preview-placeholder');
+        if (previewBackdropImg) { previewBackdropImg.src = ''; previewBackdropImg.style.display = 'none'; }
+        if (previewBackdropPlaceholder) { previewBackdropPlaceholder.style.display = 'block'; previewBackdropPlaceholder.textContent = 'No Backdrop Selected'; }
 
         document.getElementById('modal-movie-title-heading').textContent = 'Add New Theatrical Movie';
         document.getElementById('movie-modal').classList.add('active');
@@ -803,7 +819,9 @@ class MTRSAdminPanel {
 
         this.currentEditMovieId = movieId;
         this.pendingPosterBlob = null;
+        this.pendingBackdropBlob = null;
         this.removeCustomPosterRequested = false;
+        this.removeCustomBackdropRequested = false;
         this.clearModalError();
 
         document.getElementById('modal-movie-id').value = movie.Movie_ID;
@@ -815,23 +833,53 @@ class MTRSAdminPanel {
         document.getElementById('modal-movie-cast').value = movie.Cast || '';
         document.getElementById('modal-movie-status').value = movie.Status || 'Active';
         document.getElementById('modal-movie-synopsis').value = movie.Synopsis || '';
+
+        // Poster controls pre-fill
         document.getElementById('modal-movie-poster-url').value = movie.Poster_Url || '';
         document.getElementById('modal-poster-file-input').value = '';
-        document.getElementById('modal-poster-error-msg').style.display = 'none';
+        const posterErr = document.getElementById('modal-poster-error-msg');
+        if (posterErr) posterErr.style.display = 'none';
 
-        const previewImg = document.getElementById('modal-poster-preview-img');
-        const previewPlaceholder = document.getElementById('modal-poster-preview-placeholder');
+        const previewPosterImg = document.getElementById('modal-poster-preview-img');
+        const previewPosterPlaceholder = document.getElementById('modal-poster-preview-placeholder');
 
-        const resolvedPoster = window.MTRSPosters ? window.MTRSPosters.resolvePoster(movie) : null;
+        const resolvedPoster = window.MTRSPosters ? window.MTRSPosters.resolvePoster(movie) : (movie.Poster_Url || null);
         if (resolvedPoster) {
-            previewImg.src = resolvedPoster;
-            previewImg.style.display = 'block';
-            previewPlaceholder.style.display = 'none';
+            previewPosterImg.src = resolvedPoster;
+            previewPosterImg.style.display = 'block';
+            if (previewPosterPlaceholder) previewPosterPlaceholder.style.display = 'none';
         } else {
-            previewImg.src = '';
-            previewImg.style.display = 'none';
-            previewPlaceholder.style.display = 'block';
-            previewPlaceholder.textContent = 'Registry Vector SVG Fallback Active';
+            previewPosterImg.src = '';
+            previewPosterImg.style.display = 'none';
+            if (previewPosterPlaceholder) {
+                previewPosterPlaceholder.style.display = 'block';
+                previewPosterPlaceholder.textContent = 'Registry Vector SVG Fallback Active';
+            }
+        }
+
+        // Backdrop controls pre-fill
+        const backdropUrlInput = document.getElementById('modal-movie-backdrop-url');
+        if (backdropUrlInput) backdropUrlInput.value = movie.Backdrop_Url || '';
+        const backdropFileInput = document.getElementById('modal-backdrop-file-input');
+        if (backdropFileInput) backdropFileInput.value = '';
+        const backdropErr = document.getElementById('modal-backdrop-error-msg');
+        if (backdropErr) backdropErr.style.display = 'none';
+
+        const previewBackdropImg = document.getElementById('modal-backdrop-preview-img');
+        const previewBackdropPlaceholder = document.getElementById('modal-backdrop-preview-placeholder');
+
+        const resolvedBackdrop = window.MTRSPosters ? window.MTRSPosters.resolveBackdrop(movie) : (movie.Backdrop_Url || null);
+        if (resolvedBackdrop && previewBackdropImg) {
+            previewBackdropImg.src = resolvedBackdrop;
+            previewBackdropImg.style.display = 'block';
+            if (previewBackdropPlaceholder) previewBackdropPlaceholder.style.display = 'none';
+        } else if (previewBackdropImg) {
+            previewBackdropImg.src = '';
+            previewBackdropImg.style.display = 'none';
+            if (previewBackdropPlaceholder) {
+                previewBackdropPlaceholder.style.display = 'block';
+                previewBackdropPlaceholder.textContent = 'Default Hero Backdrop Active';
+            }
         }
 
         document.getElementById('modal-movie-title-heading').textContent = `Edit Movie — ${movie.Movie_Name} (${movie.Movie_ID})`;
@@ -843,6 +891,9 @@ class MTRSAdminPanel {
     closeMovieModal() {
         document.getElementById('movie-modal').classList.remove('active');
         this.pendingPosterBlob = null;
+        this.pendingBackdropBlob = null;
+        this.removeCustomPosterRequested = false;
+        this.removeCustomBackdropRequested = false;
         this.currentEditMovieId = null;
         this.clearModalError();
         const noticeEl = document.getElementById('modal-movie-auth-notice');
@@ -857,20 +908,24 @@ class MTRSAdminPanel {
         const errorEl = document.getElementById('modal-poster-error-msg');
 
         if (!validTypes.includes(file.type.toLowerCase())) {
-            errorEl.textContent = "Unsupported format. Only JPEG, JPG, PNG, and WebP images are allowed.";
-            errorEl.style.display = 'block';
+            if (errorEl) {
+                errorEl.textContent = "Unsupported format. Only JPEG, JPG, PNG, and WebP images are allowed.";
+                errorEl.style.display = 'block';
+            }
             input.value = '';
             return;
         }
 
-        if (file.size > 35 * 1024 * 1024) {
-            errorEl.textContent = `File size is ${(file.size / (1024 * 1024)).toFixed(2)}MB, exceeding the 35MB limit.`;
-            errorEl.style.display = 'block';
+        if (file.size > 25 * 1024 * 1024) {
+            if (errorEl) {
+                errorEl.textContent = `File size is ${(file.size / (1024 * 1024)).toFixed(2)}MB, exceeding the 25MB limit.`;
+                errorEl.style.display = 'block';
+            }
             input.value = '';
             return;
         }
 
-        errorEl.style.display = 'none';
+        if (errorEl) errorEl.style.display = 'none';
         this.pendingPosterBlob = file;
         this.removeCustomPosterRequested = false;
 
@@ -878,11 +933,13 @@ class MTRSAdminPanel {
         const previewImg = document.getElementById('modal-poster-preview-img');
         const previewPlaceholder = document.getElementById('modal-poster-preview-placeholder');
 
-        previewImg.src = objUrl;
-        previewImg.style.display = 'block';
-        previewPlaceholder.style.display = 'none';
+        if (previewImg) {
+            previewImg.src = objUrl;
+            previewImg.style.display = 'block';
+        }
+        if (previewPlaceholder) previewPlaceholder.style.display = 'none';
 
-        window.App.showToast("Poster preview loaded from local computer. Click 'Save Movie & Poster' to persist.", "info");
+        window.App.showToast("Poster preview loaded. It will upload to Supabase Storage on save.", "info");
     }
 
     handlePosterUrlInput(url) {
@@ -896,12 +953,14 @@ class MTRSAdminPanel {
         if (trimmed) {
             this.pendingPosterBlob = null;
             this.removeCustomPosterRequested = false;
-            previewImg.src = trimmed;
-            previewImg.style.display = 'block';
-            previewPlaceholder.style.display = 'none';
+            if (previewImg) {
+                previewImg.src = trimmed;
+                previewImg.style.display = 'block';
+            }
+            if (previewPlaceholder) previewPlaceholder.style.display = 'none';
         } else if (!this.pendingPosterBlob) {
-            previewImg.style.display = 'none';
-            previewPlaceholder.style.display = 'block';
+            if (previewImg) previewImg.style.display = 'none';
+            if (previewPlaceholder) previewPlaceholder.style.display = 'block';
         }
     }
 
@@ -913,12 +972,102 @@ class MTRSAdminPanel {
 
         const previewImg = document.getElementById('modal-poster-preview-img');
         const previewPlaceholder = document.getElementById('modal-poster-preview-placeholder');
-        previewImg.src = '';
-        previewImg.style.display = 'none';
-        previewPlaceholder.style.display = 'block';
-        previewPlaceholder.textContent = 'Poster marked for removal. Fallback artwork will be used.';
+        if (previewImg) {
+            previewImg.src = '';
+            previewImg.style.display = 'none';
+        }
+        if (previewPlaceholder) {
+            previewPlaceholder.style.display = 'block';
+            previewPlaceholder.textContent = 'Poster marked for removal. Fallback artwork will be used.';
+        }
 
-        window.App.showToast("Custom poster marked for removal. Click Save to apply.", "info");
+        window.App.showToast("Poster marked for removal. Click Save to apply.", "info");
+    }
+
+    handleBackdropFileSelected(input) {
+        const file = input.files && input.files[0];
+        if (!file) return;
+
+        const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+        const errorEl = document.getElementById('modal-backdrop-error-msg');
+
+        if (!validTypes.includes(file.type.toLowerCase())) {
+            if (errorEl) {
+                errorEl.textContent = "Unsupported format. Only JPEG, JPG, PNG, and WebP images are allowed.";
+                errorEl.style.display = 'block';
+            }
+            input.value = '';
+            return;
+        }
+
+        if (file.size > 25 * 1024 * 1024) {
+            if (errorEl) {
+                errorEl.textContent = `File size is ${(file.size / (1024 * 1024)).toFixed(2)}MB, exceeding the 25MB limit.`;
+                errorEl.style.display = 'block';
+            }
+            input.value = '';
+            return;
+        }
+
+        if (errorEl) errorEl.style.display = 'none';
+        this.pendingBackdropBlob = file;
+        this.removeCustomBackdropRequested = false;
+
+        const objUrl = URL.createObjectURL(file);
+        const previewImg = document.getElementById('modal-backdrop-preview-img');
+        const previewPlaceholder = document.getElementById('modal-backdrop-preview-placeholder');
+
+        if (previewImg) {
+            previewImg.src = objUrl;
+            previewImg.style.display = 'block';
+        }
+        if (previewPlaceholder) previewPlaceholder.style.display = 'none';
+
+        window.App.showToast("Hero backdrop preview loaded. It will upload to Supabase Storage on save.", "info");
+    }
+
+    handleBackdropUrlInput(url) {
+        const errorEl = document.getElementById('modal-backdrop-error-msg');
+        if (errorEl) errorEl.style.display = 'none';
+
+        const previewImg = document.getElementById('modal-backdrop-preview-img');
+        const previewPlaceholder = document.getElementById('modal-backdrop-preview-placeholder');
+        const trimmed = (url || '').trim();
+
+        if (trimmed) {
+            this.pendingBackdropBlob = null;
+            this.removeCustomBackdropRequested = false;
+            if (previewImg) {
+                previewImg.src = trimmed;
+                previewImg.style.display = 'block';
+            }
+            if (previewPlaceholder) previewPlaceholder.style.display = 'none';
+        } else if (!this.pendingBackdropBlob) {
+            if (previewImg) previewImg.style.display = 'none';
+            if (previewPlaceholder) previewPlaceholder.style.display = 'block';
+        }
+    }
+
+    removeCustomBackdrop() {
+        this.pendingBackdropBlob = null;
+        this.removeCustomBackdropRequested = true;
+        const backdropUrlInput = document.getElementById('modal-movie-backdrop-url');
+        if (backdropUrlInput) backdropUrlInput.value = '';
+        const backdropFileInput = document.getElementById('modal-backdrop-file-input');
+        if (backdropFileInput) backdropFileInput.value = '';
+
+        const previewImg = document.getElementById('modal-backdrop-preview-img');
+        const previewPlaceholder = document.getElementById('modal-backdrop-preview-placeholder');
+        if (previewImg) {
+            previewImg.src = '';
+            previewImg.style.display = 'none';
+        }
+        if (previewPlaceholder) {
+            previewPlaceholder.style.display = 'block';
+            previewPlaceholder.textContent = 'Backdrop marked for removal. Fallback backdrop will be used.';
+        }
+
+        window.App.showToast("Backdrop marked for removal. Click Save to apply.", "info");
     }
 
     async saveMovie() {
@@ -931,7 +1080,8 @@ class MTRSAdminPanel {
         const cast = document.getElementById('modal-movie-cast').value.trim();
         const status = document.getElementById('modal-movie-status').value || 'Active';
         const synopsis = document.getElementById('modal-movie-synopsis').value.trim();
-        const posterUrl = document.getElementById('modal-movie-poster-url').value.trim();
+        const posterUrlInput = document.getElementById('modal-movie-poster-url').value.trim();
+        const backdropUrlInput = (document.getElementById('modal-movie-backdrop-url')?.value || '').trim();
 
         // 1. Client-side Form Validation
         if (!name || !genre || isNaN(duration) || duration <= 0 || !language) {
@@ -949,7 +1099,7 @@ class MTRSAdminPanel {
         }
 
         if (genre.length > 50) {
-            const valMsg = "Genre cannot exceed 50 characters.";
+            const valMsg = "Genre exceeds maximum length of 50 characters.";
             this.showModalError(valMsg);
             window.App.showToast(valMsg, "error");
             return;
@@ -976,7 +1126,7 @@ class MTRSAdminPanel {
         const originalBtnText = saveBtn ? saveBtn.textContent : 'Save Movie & Poster';
         if (saveBtn) {
             saveBtn.disabled = true;
-            saveBtn.textContent = 'Saving to Supabase...';
+            saveBtn.textContent = 'Checking admin status...';
         }
 
         const targetMovieId = this.currentEditMovieId;
@@ -993,8 +1143,96 @@ class MTRSAdminPanel {
             return;
         }
 
+        // 4. Preflight Administrator Check: Prevent broken operations early
+        const adminCheck = await window.MTRSSupabase.checkIsAdmin();
+        if (!adminCheck.success || !adminCheck.isAdmin) {
+            const authErrMsg = "Admin authorization required: Only authenticated administrators registered in public.admin_users can create or modify movies and artwork.";
+            this.showModalError(authErrMsg);
+            window.App.showToast(authErrMsg, "error");
+            if (saveBtn) {
+                saveBtn.disabled = false;
+                saveBtn.textContent = originalBtnText;
+            }
+            return;
+        }
+
+        // Array to track newly uploaded cloud storage files for compensating rollback
+        const newlyUploadedStorageFiles = [];
+
         try {
-            let saveResult;
+            let finalPosterUrl = this.removeCustomPosterRequested ? '' : posterUrlInput;
+            let finalBackdropUrl = this.removeCustomBackdropRequested ? '' : backdropUrlInput;
+
+            // 5. Cloud Upload: Theatrical Poster (if file selected)
+            if (this.pendingPosterBlob) {
+                if (saveBtn) saveBtn.textContent = 'Uploading poster to cloud storage...';
+                console.log('[MTRS Admin] Uploading poster to Supabase Storage...');
+
+                const posterUploadRes = await window.MTRSSupabase.uploadArtworkFile({
+                    file: this.pendingPosterBlob,
+                    folder: 'posters',
+                    movieId: targetMovieId || 'new'
+                });
+
+                if (!posterUploadRes || !posterUploadRes.success) {
+                    const upErr = `Poster upload failed: ${posterUploadRes?.error || 'Unknown storage error'}. Operation cancelled to prevent broken artwork reference.`;
+                    console.error('[MTRS Admin] Poster upload failed:', posterUploadRes);
+                    this.showModalError(upErr);
+                    window.App.showToast(upErr, 'error');
+                    if (saveBtn) {
+                        saveBtn.disabled = false;
+                        saveBtn.textContent = originalBtnText;
+                    }
+                    return;
+                }
+
+                finalPosterUrl = posterUploadRes.publicUrl;
+                newlyUploadedStorageFiles.push(posterUploadRes.path);
+                console.log(`[MTRS Admin] Poster uploaded successfully: ${finalPosterUrl}`);
+            }
+
+            // 6. Cloud Upload: Cinematic Hero Backdrop (if file selected)
+            if (this.pendingBackdropBlob) {
+                if (saveBtn) saveBtn.textContent = 'Uploading backdrop to cloud storage...';
+                console.log('[MTRS Admin] Uploading backdrop to Supabase Storage...');
+
+                const backdropUploadRes = await window.MTRSSupabase.uploadArtworkFile({
+                    file: this.pendingBackdropBlob,
+                    folder: 'backdrops',
+                    movieId: targetMovieId || 'new'
+                });
+
+                if (!backdropUploadRes || !backdropUploadRes.success) {
+                    let upErr = `Backdrop upload failed: ${backdropUploadRes?.error || 'Unknown storage error'}. Operation cancelled to prevent broken artwork reference.`;
+                    console.error('[MTRS Admin] Backdrop upload failed:', backdropUploadRes);
+
+                    // Clean up already uploaded poster to prevent orphans
+                    const cleanupFailures = [];
+                    for (const f of newlyUploadedStorageFiles) {
+                        const delRes = await window.MTRSSupabase.deleteArtworkFile(f);
+                        if (!delRes || !delRes.success) cleanupFailures.push(f);
+                    }
+                    newlyUploadedStorageFiles.length = 0;
+
+                    if (cleanupFailures.length > 0) {
+                        upErr += ` Warning: Storage cleanup failed for: ${cleanupFailures.join(', ')}. Please delete manually in Supabase Storage.`;
+                    }
+
+                    this.showModalError(upErr);
+                    window.App.showToast(upErr, 'error');
+                    if (saveBtn) {
+                        saveBtn.disabled = false;
+                        saveBtn.textContent = originalBtnText;
+                    }
+                    return;
+                }
+
+                finalBackdropUrl = backdropUploadRes.publicUrl;
+                newlyUploadedStorageFiles.push(backdropUploadRes.path);
+                console.log(`[MTRS Admin] Backdrop uploaded successfully: ${finalBackdropUrl}`);
+            }
+
+            // 7. Prepare Database Payload
             const moviePayload = {
                 Movie_Name: name,
                 Genre: genre,
@@ -1004,9 +1242,14 @@ class MTRSAdminPanel {
                 Cast: cast,
                 Status: status,
                 Synopsis: synopsis,
-                Poster_Url: this.removeCustomPosterRequested ? '' : posterUrl
+                Poster_Url: finalPosterUrl,
+                Poster_Hires_Url: finalPosterUrl,
+                Backdrop_Url: finalBackdropUrl
             };
 
+            if (saveBtn) saveBtn.textContent = 'Saving movie to Supabase...';
+
+            let saveResult;
             if (targetMovieId) {
                 // UPDATE existing movie in Supabase
                 saveResult = await window.MTRSSupabase.updateMovie(targetMovieId, moviePayload);
@@ -1015,16 +1258,35 @@ class MTRSAdminPanel {
                 saveResult = await window.MTRSSupabase.createMovie(moviePayload);
             }
 
-            // 4. Strict Persistence Check: NEVER report success or save locally when Supabase write fails!
+            // 8. Strict Persistence Check: Handle DB Failure with Compensating Storage Cleanup
             if (!saveResult || !saveResult.success) {
                 const rawError = saveResult?.error || "Unknown database error";
                 console.error('[MTRS Admin] Supabase movie write failed:', saveResult);
+
+                // Clean up newly uploaded files to avoid orphaned files in Storage
+                const cleanupFailures = [];
+                let cleanupSuccessCount = 0;
+                for (const f of newlyUploadedStorageFiles) {
+                    const delRes = await window.MTRSSupabase.deleteArtworkFile(f);
+                    if (!delRes || !delRes.success) {
+                        cleanupFailures.push(f);
+                    } else {
+                        cleanupSuccessCount++;
+                    }
+                }
+                newlyUploadedStorageFiles.length = 0;
 
                 let friendlyMsg = rawError;
                 if (saveResult?.code === '42501' || rawError.toLowerCase().includes('permission denied') || rawError.toLowerCase().includes('violates row-level security')) {
                     friendlyMsg = `Permission Denied (PostgreSQL RLS 42501): Only authenticated administrators registered in public.admin_users can create or modify movies in the Supabase database. (${rawError})`;
                 } else if (rawError.toLowerCase().includes('failed to fetch')) {
-                    friendlyMsg = `Network Connection Error: Could not reach Supabase cloud endpoint. Please check your network connection and retry.`;
+                    friendlyMsg = "Network Connection Error: Could not reach Supabase cloud endpoint. Please check your network connection and retry.";
+                }
+
+                if (cleanupFailures.length > 0) {
+                    friendlyMsg += ` Warning: Storage cleanup could not confirm deletion of orphaned file(s): ${cleanupFailures.join(', ')}. Please delete manually in Supabase Storage.`;
+                } else if (cleanupSuccessCount > 0) {
+                    friendlyMsg += ` (Compensating rollback confirmed deletion of uploaded storage file(s).)`;
                 }
 
                 this.showModalError(friendlyMsg);
@@ -1041,37 +1303,66 @@ class MTRSAdminPanel {
             const savedMovie = saveResult.data;
             const resolvedMovieId = savedMovie?.Movie_ID || targetMovieId;
 
-            // 5. Handle local custom artwork blob (IndexedDB image cache)
+            // 9. Cache in local IndexedDB for instant offline preview & fallback
             if (this.pendingPosterBlob && window.MTRSImageStore && resolvedMovieId) {
                 try {
                     await window.MTRSImageStore.savePoster(resolvedMovieId, this.pendingPosterBlob);
                 } catch (artErr) {
-                    console.warn('[MTRS Admin] Artwork local cache warning:', artErr);
+                    console.warn('[MTRS Admin] Artwork local poster cache warning:', artErr);
                 }
             } else if (this.removeCustomPosterRequested && window.MTRSImageStore && resolvedMovieId) {
                 try {
                     await window.MTRSImageStore.deletePoster(resolvedMovieId);
                 } catch (artErr) {
-                    console.warn('[MTRS Admin] Artwork local removal warning:', artErr);
+                    console.warn('[MTRS Admin] Artwork local poster removal warning:', artErr);
                 }
             }
 
-            // 6. Close Modal
+            if (this.pendingBackdropBlob && window.MTRSImageStore && resolvedMovieId) {
+                try {
+                    await window.MTRSImageStore.saveBackdrop(resolvedMovieId, this.pendingBackdropBlob);
+                } catch (artErr) {
+                    console.warn('[MTRS Admin] Artwork local backdrop cache warning:', artErr);
+                }
+            } else if (this.removeCustomBackdropRequested && window.MTRSImageStore && resolvedMovieId) {
+                try {
+                    await window.MTRSImageStore.deleteBackdrop(resolvedMovieId);
+                } catch (artErr) {
+                    console.warn('[MTRS Admin] Artwork local backdrop removal warning:', artErr);
+                }
+            }
+
+            // 10. Close Modal
             this.closeMovieModal();
 
-            // 7. Reload authoritative catalogue from Supabase
+            // 11. Reload authoritative catalogue from Supabase
             window.App.showToast(`Movie "${savedMovie.Movie_Name}" (${resolvedMovieId}) persisted to Supabase! Syncing catalogue...`, "info");
             await window.App.loadCinemaData();
 
-            // 8. Refresh Dashboard and Admin Movies Table
+            // 12. Refresh Dashboard and Admin Movies Table
             this.refreshDashboard();
             if (this.activeAdminTab === 'movies') this.renderMoviesTable();
 
-            window.App.showToast(`✓ Movie "${savedMovie.Movie_Name}" (${resolvedMovieId}) is now live in central Supabase database!`, "success");
+            window.App.showToast(`✓ Movie "${savedMovie.Movie_Name}" (${resolvedMovieId}) & artwork live in central Supabase!`, "success");
 
         } catch (err) {
             console.error('[MTRS Admin] Unexpected exception saving movie:', err);
-            const excMsg = `Unexpected error: ${err.message || 'Operation failed'}`;
+
+            // Clean up any uploaded storage files on unexpected exception
+            const cleanupFailures = [];
+            for (const f of newlyUploadedStorageFiles) {
+                try {
+                    const delRes = await window.MTRSSupabase.deleteArtworkFile(f);
+                    if (!delRes || !delRes.success) cleanupFailures.push(f);
+                } catch (e) {
+                    cleanupFailures.push(f);
+                }
+            }
+
+            let excMsg = `Unexpected error: ${err.message || 'Operation failed'}`;
+            if (cleanupFailures.length > 0) {
+                excMsg += ` Warning: Storage cleanup failed for orphaned file(s): ${cleanupFailures.join(', ')}. Please delete manually in Supabase Storage.`;
+            }
             this.showModalError(excMsg);
             window.App.showToast(excMsg, "error");
         } finally {

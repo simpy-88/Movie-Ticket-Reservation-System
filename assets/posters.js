@@ -420,117 +420,168 @@
         }
 
         /**
-         * Resolves portrait poster URL for catalogue cards & detail modals
-         * Priority:
-         * 1. Uploaded poster (IndexedDB MTRSImageStore)
-         * 2. Custom poster override (localStorage or registry customPoster)
-         * 3. Explicit movie object poster URL (Supabase or database record)
-         * 4. Verified official TMDb CDN poster (prefer high-res)
-         * 5. Null (falls back to SVG in renderPosterHtml)
+         * Resolves portrait poster URL for catalogue cards & detail modals.
+         * Enforces strict priority order per specification:
+         * 1. Valid uploaded Supabase artwork URL from the movie record.
+         * 2. Existing custom artwork override (localStorage or IndexedDB store).
+         * 3. Existing movie registry/CDN artwork.
+         * 4. Existing fallback SVG.
          */
         resolvePoster(movieOrId, options = {}) {
             const size = options.size || 'w780';
             const rec = this.findRecord(movieOrId);
             const movieId = typeof movieOrId === 'string' ? movieOrId : (movieOrId ? (movieOrId.Movie_ID || movieOrId.movie_id) : '');
 
-            // Priority 1: Uploaded poster associated with the movie (IndexedDB persistent store)
-            if (movieId && window.MTRSImageStore && typeof window.MTRSImageStore.getPosterUrl === 'function') {
-                const uploadedUrl = window.MTRSImageStore.getPosterUrl(movieId);
-                if (uploadedUrl) return uploadedUrl;
-            }
-
-            // Priority 2: Custom poster override (strictly poster, never backdrop)
-            const customPoster = this.getCustomPoster(movieOrId);
-            if (customPoster) {
-                return customPoster;
-            }
-
-            // Priority 3: Explicit poster URL from database or movie object
+            // ----------------------------------------------------------------
+            // Priority 1: Valid uploaded Supabase artwork URL from the movie record
+            // ----------------------------------------------------------------
+            // (a) From movie object passed directly
             if (typeof movieOrId === 'object' && movieOrId) {
-                const cand = movieOrId.Poster_Url || movieOrId.Poster_URL || movieOrId.poster_url;
+                const candHires = movieOrId.Poster_Hires_Url || movieOrId.poster_hires_url;
+                const candStd = movieOrId.Poster_Url || movieOrId.Poster_URL || movieOrId.poster_url;
+                const cand = (size === 'w780' && candHires) ? candHires : (candStd || candHires);
                 if (cand && typeof cand === 'string' && cand.trim() !== '') {
                     return cand.trim();
                 }
             }
-            if (movieId && window.MTRSEngine) {
-                try {
-                    const dbMovie = window.MTRSEngine.getTable('MOVIE').find(m => m.Movie_ID === movieId);
-                    if (dbMovie) {
-                        const cand = dbMovie.Poster_Url || dbMovie.Poster_URL || dbMovie.poster_url;
-                        if (cand && typeof cand === 'string' && cand.trim() !== '') {
-                            return cand.trim();
+
+            // (b) From loaded Supabase live catalogue (App.movies or MTRSEngine)
+            if (movieId) {
+                let liveMovie = null;
+                if (window.App && Array.isArray(window.App.movies)) {
+                    liveMovie = window.App.movies.find(m => (m.Movie_ID || m.movie_id) === movieId);
+                }
+                if (!liveMovie && window.MTRSEngine && typeof window.MTRSEngine.getTable === 'function') {
+                    try {
+                        const dbMovies = window.MTRSEngine.getTable('MOVIE');
+                        if (Array.isArray(dbMovies)) {
+                            liveMovie = dbMovies.find(m => (m.Movie_ID || m.movie_id) === movieId);
                         }
+                    } catch (e) { }
+                }
+
+                if (liveMovie) {
+                    const candHires = liveMovie.Poster_Hires_Url || liveMovie.poster_hires_url;
+                    const candStd = liveMovie.Poster_Url || liveMovie.Poster_URL || liveMovie.poster_url;
+                    const cand = (size === 'w780' && candHires) ? candHires : (candStd || candHires);
+                    if (cand && typeof cand === 'string' && cand.trim() !== '') {
+                        return cand.trim();
                     }
-                } catch (e) { }
+                }
             }
 
-            // Priority 4: Existing verified poster registry entry
+            // ----------------------------------------------------------------
+            // Priority 2: Existing custom artwork override
+            // ----------------------------------------------------------------
+            // (a) Local storage override or static customPoster definition
+            const customPoster = this.getCustomPoster(movieOrId);
+            if (customPoster && typeof customPoster === 'string' && customPoster.trim() !== '') {
+                return customPoster.trim();
+            }
+
+            // (b) IndexedDB persistent image store (local browser cache / staging fallback)
+            if (movieId && window.MTRSImageStore && typeof window.MTRSImageStore.getPosterUrl === 'function') {
+                const uploadedUrl = window.MTRSImageStore.getPosterUrl(movieId);
+                if (uploadedUrl && typeof uploadedUrl === 'string' && uploadedUrl.trim() !== '') {
+                    return uploadedUrl.trim();
+                }
+            }
+
+            // ----------------------------------------------------------------
+            // Priority 3: Existing movie registry/CDN artwork
+            // ----------------------------------------------------------------
             if (rec) {
                 if (size === 'w780' && rec.posterHiRes) return rec.posterHiRes;
                 if (rec.posterHiRes) return rec.posterHiRes;
                 if (rec.posterUrl) return rec.posterUrl;
             }
 
+            // ----------------------------------------------------------------
+            // Priority 4: Existing fallback SVG (null returned, rendered by renderPosterHtml)
+            // ----------------------------------------------------------------
             return null;
         }
 
         /**
-         * Resolves widescreen backdrop URL for Hero section
-         * Priority:
-         * 1. A custom backdrop override, if configured (localStorage or registry customBackdrop)
-         * 2. An existing backdrop URL from the movie's data, if available (Supabase or registry)
-         * 3. A suitable existing image fallback, without stretching or distorting a portrait poster
+         * Resolves widescreen backdrop URL for Hero section.
+         * Enforces strict priority order per specification:
+         * 1. Valid uploaded Supabase artwork URL from the movie record.
+         * 2. Existing custom artwork override (localStorage or IndexedDB store).
+         * 3. Existing movie registry/CDN artwork.
+         * 4. Existing fallback SVG.
          */
         resolveBackdrop(movieOrId, options = {}) {
             const size = options.size || 'w1280';
             const rec = this.findRecord(movieOrId);
             const movieId = typeof movieOrId === 'string' ? movieOrId : (movieOrId ? (movieOrId.Movie_ID || movieOrId.movie_id) : '');
 
-            // Priority 1: Uploaded backdrop from IndexedDB persistent store (highest custom priority)
-            if (movieId && window.MTRSImageStore && typeof window.MTRSImageStore.getBackdropUrl === 'function') {
-                const uploadedUrl = window.MTRSImageStore.getBackdropUrl(movieId);
-                if (uploadedUrl) return uploadedUrl;
-            }
-
-            // Priority 2: Custom backdrop override, if configured (strictly backdrop, never custom poster)
-            const customBackdrop = this.getCustomBackdrop(movieOrId);
-            if (customBackdrop) {
-                return customBackdrop;
-            }
-
-            // Priority 2: Existing backdrop URL from movie data
-            // (a) From live movie object (e.g., Supabase query)
+            // ----------------------------------------------------------------
+            // Priority 1: Valid uploaded Supabase artwork URL from the movie record
+            // ----------------------------------------------------------------
+            // (a) From movie object passed directly
             if (typeof movieOrId === 'object' && movieOrId) {
                 const cand = movieOrId.Backdrop_Url || movieOrId.backdrop_url || movieOrId.Backdrop_URL;
                 if (cand && typeof cand === 'string' && cand.trim() !== '') {
                     return cand.trim();
                 }
             }
-            // (b) From verified official registry backdrop
+
+            // (b) From loaded Supabase live catalogue (App.movies or MTRSEngine)
+            if (movieId) {
+                let liveMovie = null;
+                if (window.App && Array.isArray(window.App.movies)) {
+                    liveMovie = window.App.movies.find(m => (m.Movie_ID || m.movie_id) === movieId);
+                }
+                if (!liveMovie && window.MTRSEngine && typeof window.MTRSEngine.getTable === 'function') {
+                    try {
+                        const dbMovies = window.MTRSEngine.getTable('MOVIE');
+                        if (Array.isArray(dbMovies)) {
+                            liveMovie = dbMovies.find(m => (m.Movie_ID || m.movie_id) === movieId);
+                        }
+                    } catch (e) { }
+                }
+
+                if (liveMovie) {
+                    const cand = liveMovie.Backdrop_Url || liveMovie.backdrop_url || liveMovie.Backdrop_URL;
+                    if (cand && typeof cand === 'string' && cand.trim() !== '') {
+                        return cand.trim();
+                    }
+                }
+            }
+
+            // ----------------------------------------------------------------
+            // Priority 2: Existing custom artwork override
+            // ----------------------------------------------------------------
+            // (a) Local storage override or static customBackdrop definition
+            const customBackdrop = this.getCustomBackdrop(movieOrId);
+            if (customBackdrop && typeof customBackdrop === 'string' && customBackdrop.trim() !== '') {
+                return customBackdrop.trim();
+            }
+
+            // (b) IndexedDB persistent image store (local browser cache / staging fallback)
+            if (movieId && window.MTRSImageStore && typeof window.MTRSImageStore.getBackdropUrl === 'function') {
+                const uploadedUrl = window.MTRSImageStore.getBackdropUrl(movieId);
+                if (uploadedUrl && typeof uploadedUrl === 'string' && uploadedUrl.trim() !== '') {
+                    return uploadedUrl.trim();
+                }
+            }
+
+            // ----------------------------------------------------------------
+            // Priority 3: Existing movie registry/CDN artwork
+            // ----------------------------------------------------------------
             if (rec && rec.backdropUrl && typeof rec.backdropUrl === 'string' && rec.backdropUrl.trim() !== '') {
                 if (size === 'original') {
                     return rec.backdropUrl.replace('/w1280/', '/original/');
                 }
                 return rec.backdropUrl.trim();
             }
-            // (c) From in-memory database if present
-            if (movieId && window.MTRSEngine) {
-                try {
-                    const dbMovie = window.MTRSEngine.getTable('MOVIE').find(m => m.Movie_ID === movieId);
-                    if (dbMovie) {
-                        const cand = dbMovie.Backdrop_Url || dbMovie.backdrop_url || dbMovie.Backdrop_URL;
-                        if (cand && typeof cand === 'string' && cand.trim() !== '') {
-                            return cand.trim();
-                        }
-                    }
-                } catch (e) { }
-            }
 
-            // Priority 3: A suitable existing image fallback, without stretching or distorting
+            // ----------------------------------------------------------------
+            // Priority 4: Existing fallback SVG / non-distorted aspect-ratio fallback
+            // ----------------------------------------------------------------
             if (rec && rec.fallbackBackdropSvg) {
                 return rec.fallbackBackdropSvg;
             }
-            // High-resolution poster URL formatted for CSS background-size: cover (preserves aspect ratio)
             if (rec && rec.posterHiRes) {
                 return rec.posterHiRes;
             }
@@ -538,7 +589,6 @@
                 return (movieOrId.Poster_Hires_Url || movieOrId.Poster_Url).trim();
             }
 
-            // Dynamic 16:9 widescreen SVG backdrop data URI
             const movieTitle = (typeof movieOrId === 'object' && (movieOrId.Movie_Name || movieOrId.movie_name)) ?
                 (movieOrId.Movie_Name || movieOrId.movie_name) : (rec ? rec.title : 'Featured Movie');
             return this.generateDynamicBackdropSvg(movieTitle);

@@ -731,9 +731,9 @@
 
             <!-- Storage Notice -->
             <div class="art-storage-notice">
-                <span style="font-size: 1rem;">ℹ️</span>
+                <span style="font-size: 1rem;">☁️</span>
                 <span>
-                    <strong>Browser-Local Persistence:</strong> Artwork is saved persistently to this device's browser IndexedDB storage and survives page refreshes without database schema changes. It is local to your browser and not synced to external devices.
+                    <strong>Centralized Cloud Storage:</strong> Artwork saved here is uploaded to Supabase Storage (<code>movie-artwork</code> bucket) and persisted in the central database for all visitors and devices. Browser IndexedDB is preserved as an instant local cache.
                 </span>
             </div>
 
@@ -814,8 +814,8 @@
                     <textarea id="modal-movie-synopsis" class="search-input" rows="3" placeholder="Enter detailed theatrical synopsis..." style="width: 100%; padding: 0.75rem; resize: vertical;"></textarea>
                 </div>
 
-                <!-- POSTER UPLOAD & PREVIEW CONTROLS (Feature 2) -->
-                <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 1.25rem; margin-bottom: 1.5rem;">
+                <!-- POSTER UPLOAD & PREVIEW CONTROLS -->
+                <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 1.25rem; margin-bottom: 1.25rem;">
                     <h4 style="font-family: var(--font-heading); font-size: 0.95rem; color: var(--text-pure); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
                         🖼️ Theatrical Poster Management
                     </h4>
@@ -830,7 +830,7 @@
                         <!-- Upload & URL Controls -->
                         <div style="flex: 1; min-width: 250px;">
                             <label style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem; font-weight: 700;">
-                                Upload From Computer (JPEG, PNG, WebP &le; 5MB):
+                                Upload Poster to Cloud (JPEG, PNG, WebP &le; 25MB):
                             </label>
                             <input type="file" id="modal-poster-file-input" accept="image/jpeg,image/png,image/webp" style="display: none;" onchange="window.MTRSAdmin.handlePosterFileSelected(this)">
 
@@ -839,20 +839,63 @@
                                     📁 Choose File...
                                 </button>
                                 <button type="button" class="btn-secondary" id="btn-remove-poster" style="padding: 0.45rem 0.9rem; font-size: 0.82rem; color: var(--primary);" onclick="window.MTRSAdmin.removeCustomPoster()">
-                                    ✕ Remove Custom Poster
+                                    ✕ Remove Poster
                                 </button>
                             </div>
 
                             <div style="font-size: 0.74rem; color: var(--text-muted); margin-bottom: 0.75rem;">
-                                Stored persistently in device browser storage (IndexedDB) without localStorage limits.
+                                Uploads directly to Supabase Storage (<code style="color: var(--accent-cyan);">movie-artwork/posters/</code>) and persists URL to central database.
                             </div>
 
                             <label for="modal-movie-poster-url" style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.25rem;">
-                                Or Poster Image URL (Alternative):
+                                Or External Poster Image URL:
                             </label>
                             <input type="url" id="modal-movie-poster-url" class="search-input" placeholder="https://image.tmdb.org/..." style="padding-left: 0.75rem; font-size: 0.82rem;" oninput="window.MTRSAdmin.handlePosterUrlInput(this.value)">
 
                             <div id="modal-poster-error-msg" style="display: none; color: #ff5252; font-size: 0.76rem; margin-top: 0.4rem; font-weight: 600;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CINEMATIC BACKDROP UPLOAD & PREVIEW CONTROLS -->
+                <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 1.25rem; margin-bottom: 1.5rem;">
+                    <h4 style="font-family: var(--font-heading); font-size: 0.95rem; color: var(--text-pure); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+                        🎬 Cinematic Hero Backdrop Management
+                    </h4>
+
+                    <div style="display: flex; gap: 1.5rem; align-items: flex-start; flex-wrap: wrap;">
+                        <!-- Live Backdrop Preview Box -->
+                        <div style="flex-shrink: 0; width: 170px; height: 96px; background: #080910; border: 1.5px dashed var(--mtrs-seat-border, #414760); border-radius: 8px; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative;" id="modal-backdrop-preview-box">
+                            <span style="font-size: 0.72rem; color: var(--text-muted); text-align: center; padding: 0.5rem;" id="modal-backdrop-preview-placeholder">No Backdrop Selected</span>
+                            <img id="modal-backdrop-preview-img" src="" alt="Backdrop Preview" style="display: none; width: 100%; height: 100%; object-fit: cover;">
+                        </div>
+
+                        <!-- Upload & URL Controls -->
+                        <div style="flex: 1; min-width: 250px;">
+                            <label style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem; font-weight: 700;">
+                                Upload Hero Backdrop to Cloud (16:9 Landscape &le; 25MB):
+                            </label>
+                            <input type="file" id="modal-backdrop-file-input" accept="image/jpeg,image/png,image/webp" style="display: none;" onchange="window.MTRSAdmin.handleBackdropFileSelected(this)">
+
+                            <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem; flex-wrap: wrap;">
+                                <button type="button" class="btn-secondary" style="padding: 0.45rem 0.9rem; font-size: 0.82rem;" onclick="document.getElementById('modal-backdrop-file-input').click()">
+                                    📁 Choose File...
+                                </button>
+                                <button type="button" class="btn-secondary" id="btn-remove-backdrop" style="padding: 0.45rem 0.9rem; font-size: 0.82rem; color: var(--primary);" onclick="window.MTRSAdmin.removeCustomBackdrop()">
+                                    ✕ Remove Backdrop
+                                </button>
+                            </div>
+
+                            <div style="font-size: 0.74rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+                                Uploads directly to Supabase Storage (<code style="color: var(--accent-cyan);">movie-artwork/backdrops/</code>) for the homepage hero carousel.
+                            </div>
+
+                            <label for="modal-movie-backdrop-url" style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.25rem;">
+                                Or External Backdrop Image URL:
+                            </label>
+                            <input type="url" id="modal-movie-backdrop-url" class="search-input" placeholder="https://image.tmdb.org/..." style="padding-left: 0.75rem; font-size: 0.82rem;" oninput="window.MTRSAdmin.handleBackdropUrlInput(this.value)">
+
+                            <div id="modal-backdrop-error-msg" style="display: none; color: #ff5252; font-size: 0.76rem; margin-top: 0.4rem; font-weight: 600;"></div>
                         </div>
                     </div>
                 </div>

@@ -865,6 +865,207 @@
     }
 
     // ------------------------------------------------------------------------
+    // 3.6. SUPABASE STORAGE INTEGRATION (Artwork Persistence)
+    // Manages dedicated public storage bucket 'movie-artwork'
+    // Folders: 'posters/', 'backdrops/'
+    // ------------------------------------------------------------------------
+    const STORAGE_BUCKET_NAME = 'movie-artwork';
+    const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    const MAX_UPLOAD_SIZE = 25 * 1024 * 1024; // 25 MB
+
+    /**
+     * Uploads an artwork file (poster or backdrop) to Supabase Storage.
+     * Enforces MIME types, file size (<=25MB), collision-free unique paths,
+     * and returns the resulting public CDN URL.
+     *
+     * @param {Object} params
+     * @param {File|Blob} params.file - Image file or Blob
+     * @param {'posters'|'backdrops'} params.folder - Destination logical folder
+     * @param {string} [params.movieId] - Movie ID for traceability
+     * @returns {Promise<{success: boolean, path?: string, publicUrl?: string, error?: string}>}
+     */
+    async function uploadArtworkFile({ file, folder, movieId }) {
+        if (!client) {
+            return {
+                success: false,
+                error: initError ? initError.message : 'Supabase client not initialized'
+            };
+        }
+
+        if (!file) {
+            return { success: false, error: 'No image file provided for upload.' };
+        }
+
+        // Ensure active authenticated session and administrator status (Part 6)
+        try {
+            const { session, user } = await getCurrentSession();
+            if (!session || !user) {
+                return {
+                    success: false,
+                    error: 'Authentication required: You must be signed in as an administrator to upload artwork to Supabase Storage.'
+                };
+            }
+            const adminCheck = await checkIsAdmin();
+            if (!adminCheck.success || !adminCheck.isAdmin) {
+                return {
+                    success: false,
+                    error: 'Administrator authorization required: Only authenticated administrators registered in public.admin_users can upload artwork to Supabase Storage.'
+                };
+            }
+        } catch (authErr) {
+            console.warn('[MTRS Supabase Storage] Preflight auth check warning:', authErr);
+        }
+
+        const validFolders = ['posters', 'backdrops'];
+        const cleanFolder = validFolders.includes(folder) ? folder : 'posters';
+
+        // 1. Validate MIME type
+        const fileType = (file.type || '').toLowerCase();
+        if (!ALLOWED_MIME_TYPES.includes(fileType)) {
+            return {
+                success: false,
+                error: `Invalid file format "${file.type || 'unknown'}". Allowed formats: JPEG, PNG, WebP.`
+            };
+        }
+
+        // 2. Validate Size Limit (25MB)
+        if (file.size > MAX_UPLOAD_SIZE) {
+            const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+            return {
+                success: false,
+                error: `File size (${sizeMB} MB) exceeds maximum allowed limit of 25 MB.`
+            };
+        }
+
+        // 3. Determine File Extension
+        let ext = 'jpg';
+        if (fileType.includes('png')) ext = 'png';
+        else if (fileType.includes('webp')) ext = 'webp';
+        else if (fileType.includes('jpeg') || fileType.includes('jpg')) ext = 'jpg';
+        else if (file.name && file.name.includes('.')) {
+            const parts = file.name.split('.');
+            ext = parts[parts.length - 1].toLowerCase();
+        }
+
+        // 4. Generate Unique Collision-Free Storage Path
+        const cleanMovieId = (movieId || 'movie').replace(/[^a-zA-Z0-9_-]/g, '');
+        const timestamp = Date.now();
+        const randomEntropy = Math.random().toString(36).substring(2, 9);
+        const fileName = `${cleanMovieId}-${timestamp}-${randomEntropy}.${ext}`;
+        const filePath = `${cleanFolder}/${fileName}`;
+
+        try {
+            console.log(`[MTRS Supabase Storage] Uploading ${filePath} (${(file.size / 1024).toFixed(1)} KB)...`);
+            const startTime = performance.now();
+
+            const { data, error } = await client.storage
+                .from(STORAGE_BUCKET_NAME)
+                .upload(filePath, file, {
+                    cacheControl: '3600',
+                    upsert: false,
+                    contentType: fileType || `image/${ext}`
+                });
+
+            const elapsed = (performance.now() - startTime).toFixed(1);
+
+            if (error) {
+                console.error(`[MTRS Supabase Storage] Upload failed for ${filePath}:`, error);
+                let friendlyMsg = error.message;
+
+                if (error.statusCode === '404' || error.message.toLowerCase().includes('not found') || error.message.toLowerCase().includes('bucket')) {
+                    friendlyMsg = `Storage bucket "${STORAGE_BUCKET_NAME}" does not exist. Please run migration 20261030000002_storage_artwork.sql in Supabase SQL Editor.`;
+                } else if (error.statusCode === '403' || error.message.toLowerCase().includes('access denied') || error.message.toLowerCase().includes('row-level security') || error.message.toLowerCase().includes('policy')) {
+                    friendlyMsg = `Storage Permission Denied: Only authenticated administrators registered in public.admin_users are permitted to upload artwork.`;
+                }
+
+                return {
+                    success: false,
+                    error: friendlyMsg,
+                    rawError: error
+                };
+            }
+
+            // 5. Retrieve Public URL
+            const { data: urlData } = client.storage
+                .from(STORAGE_BUCKET_NAME)
+                .getPublicUrl(filePath);
+
+            const publicUrl = urlData?.publicUrl || '';
+            console.log(`[MTRS Supabase Storage] Upload succeeded in ${elapsed}ms: ${publicUrl}`);
+
+            return {
+                success: true,
+                path: filePath,
+                publicUrl: publicUrl,
+                elapsedMs: elapsed
+            };
+
+        } catch (err) {
+            console.error('[MTRS Supabase Storage] Upload exception:', err);
+            return {
+                success: false,
+                error: `Upload exception: ${err.message}`
+            };
+        }
+    }
+
+    /**
+     * Deletes an artwork file from Supabase Storage by relative path or full public URL.
+     * Useful for cleaning up newly uploaded files if subsequent database operations fail.
+     *
+     * @param {string} filePathOrUrl
+     * @returns {Promise<{success: boolean, error?: string}>}
+     */
+    async function deleteArtworkFile(filePathOrUrl) {
+        if (!client || !filePathOrUrl) return { success: false, error: 'Client or file path missing' };
+
+        let relativePath = String(filePathOrUrl).trim();
+
+        // Strip any query strings
+        if (relativePath.includes('?')) {
+            relativePath = relativePath.split('?')[0];
+        }
+
+        // Extract relative path if full public URL was provided
+        if (relativePath.includes(`/storage/v1/object/public/${STORAGE_BUCKET_NAME}/`)) {
+            relativePath = relativePath.split(`/storage/v1/object/public/${STORAGE_BUCKET_NAME}/`)[1];
+        } else if (relativePath.includes(`/${STORAGE_BUCKET_NAME}/`)) {
+            relativePath = relativePath.split(`/${STORAGE_BUCKET_NAME}/`)[1];
+        }
+
+        try {
+            relativePath = decodeURIComponent(relativePath);
+        } catch (e) {}
+
+        try {
+            console.log(`[MTRS Supabase Storage] Deleting file: ${relativePath}...`);
+            const { data, error } = await client.storage
+                .from(STORAGE_BUCKET_NAME)
+                .remove([relativePath]);
+
+            if (error) {
+                console.warn(`[MTRS Supabase Storage] Could not delete ${relativePath}:`, error.message);
+                return { success: false, error: error.message };
+            }
+
+            console.log(`[MTRS Supabase Storage] Successfully deleted ${relativePath}.`);
+            return { success: true };
+        } catch (err) {
+            console.warn(`[MTRS Supabase Storage] Exception deleting ${relativePath}:`, err.message);
+            return { success: false, error: err.message };
+        }
+    }
+
+    /**
+     * Returns the public CDN URL for an existing file in the movie-artwork bucket.
+     */
+    function getArtworkPublicUrl(filePath) {
+        if (!client || !filePath) return '';
+        const { data } = client.storage.from(STORAGE_BUCKET_NAME).getPublicUrl(filePath);
+        return data?.publicUrl || '';
+    }
+
+    // ------------------------------------------------------------------------
     // 4. LIVE SEAT AVAILABILITY & REALTIME SUBSCRIPTION
     // ------------------------------------------------------------------------
 
@@ -1570,6 +1771,11 @@
         updateMovie: updateMovie,
         archiveMovie: archiveMovie,
         checkIsAdmin: checkIsAdmin,
+        // Supabase Storage (Movie Artwork & Backdrops)
+        STORAGE_BUCKET_NAME: STORAGE_BUCKET_NAME,
+        uploadArtworkFile: uploadArtworkFile,
+        deleteArtworkFile: deleteArtworkFile,
+        getArtworkPublicUrl: getArtworkPublicUrl,
         // Screen & Telemetry Management
         updateScreenCapacity: updateScreenCapacity,
         fetchPhysicalSeatCounts: fetchPhysicalSeatCounts,
