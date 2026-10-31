@@ -14,8 +14,12 @@ class MTRSAdminPanel {
         this.movieSearchQuery = '';
         this.theatreSearchQuery = '';
         this.pendingPosterBlob = null;
+        this.pendingBackdropBlob = null;
         this.currentEditMovieId = null;
         this.removeCustomPosterRequested = false;
+        this.removeCustomBackdropRequested = false;
+        this.adminMovies = null;
+        this.isLoadingAdminMovies = false;
 
         this.init();
     }
@@ -23,6 +27,28 @@ class MTRSAdminPanel {
     init() {
         this.setupAdminTabs();
         this.refreshDashboard();
+    }
+
+    async loadAdminMovies(force = false) {
+        if (!force && Array.isArray(this.adminMovies) && this.adminMovies.length > 0) {
+            return this.adminMovies;
+        }
+        if (window.MTRSSupabase && typeof window.MTRSSupabase.fetchMovies === 'function') {
+            try {
+                this.isLoadingAdminMovies = true;
+                const res = await window.MTRSSupabase.fetchMovies({ includeArchived: true });
+                if (res && res.success && Array.isArray(res.data)) {
+                    this.adminMovies = res.data;
+                    return this.adminMovies;
+                }
+            } catch (err) {
+                console.warn('[MTRS Admin] Error loading all movies for admin panel:', err);
+            } finally {
+                this.isLoadingAdminMovies = false;
+            }
+        }
+        this.adminMovies = (window.App && Array.isArray(window.App.movies)) ? [...window.App.movies] : (this.engine ? this.engine.getTable('MOVIE') : []);
+        return this.adminMovies;
     }
 
     setupAdminTabs() {
@@ -45,7 +71,10 @@ class MTRSAdminPanel {
         });
 
         if (tabName === 'shows') this.renderShowsTable();
-        if (tabName === 'movies') this.renderMoviesTable();
+        if (tabName === 'movies') {
+            this.renderMoviesTable();
+            this.loadAdminMovies(true).then(() => this.renderMoviesTable());
+        }
         if (tabName === 'theatres') this.renderTheatresTable();
         if (tabName === 'screens') this.renderScreensTable();
         if (tabName === 'revenue') this.renderRevenueReport();
@@ -53,10 +82,13 @@ class MTRSAdminPanel {
     }
 
     getMovies() {
+        if (Array.isArray(this.adminMovies) && this.adminMovies.length > 0) {
+            return this.adminMovies;
+        }
         if (window.App && Array.isArray(window.App.movies) && window.App.movies.length > 0) {
             return window.App.movies;
         }
-        return this.engine.getTable('MOVIE') || [];
+        return (this.engine ? this.engine.getTable('MOVIE') : []) || [];
     }
 
     getShows() {
@@ -231,7 +263,8 @@ class MTRSAdminPanel {
     }
 
     openAddShowModal() {
-        const movies = this.engine.getTable('MOVIE');
+        const allMovies = this.getMovies();
+        const movies = allMovies.filter(m => (m.Status || m.status || 'Active') === 'Active');
         const screens = this.engine.getTable('SCREEN');
         const theaters = this.engine.getTable('THEATER');
 
@@ -339,7 +372,7 @@ class MTRSAdminPanel {
         if (!modal) return;
 
         const theaters = this.engine.getTable('THEATER');
-        const movies = this.engine.getTable('MOVIE');
+        const movies = (this.getMovies() || []).filter(m => (m.Status || m.status || 'Active') === 'Active');
 
         const theatreSelect = document.getElementById('auto-sched-theatre');
         const movieSelect = document.getElementById('auto-sched-movie');
@@ -577,9 +610,7 @@ class MTRSAdminPanel {
         const container = document.getElementById('admin-movies-container');
         if (!container) return;
 
-        const movies = (window.App && Array.isArray(window.App.movies) && window.App.movies.length > 0)
-            ? window.App.movies
-            : this.engine.getTable('MOVIE');
+        const movies = this.getMovies();
         const shows = (window.App && Array.isArray(window.App.shows) && window.App.shows.length > 0)
             ? window.App.shows
             : this.engine.getTable('SHOWS');
@@ -593,11 +624,18 @@ class MTRSAdminPanel {
             (m.Cast && m.Cast.toLowerCase().includes(q))
         );
 
+        const activeCount = movies.filter(m => (m.Status || m.status || 'Active') === 'Active').length;
+        const archivedCount = movies.filter(m => (m.Status || m.status) === 'Archived').length;
+
         container.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.75rem;">
                 <div>
                     <h4 style="color: var(--text-pure); font-size: 1.15rem;">🎬 Theatrical Movies &amp; Posters (${movies.length})</h4>
-                    <p style="color: var(--text-muted); font-size: 0.82rem;">Manage movie metadata, upload theatrical posters from your computer, or configure poster URLs.</p>
+                    <p style="color: var(--text-muted); font-size: 0.82rem;">
+                        Manage movie metadata, status, upload theatrical posters, or configure poster URLs. 
+                        <span style="color: var(--accent-emerald); font-weight: 600;">● ${activeCount} Active</span> • 
+                        <span style="color: #ef4444; font-weight: 600;">● ${archivedCount} Archived</span>
+                    </p>
                 </div>
                 <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
                     <input 
@@ -636,7 +674,7 @@ class MTRSAdminPanel {
                             const movieShows = shows.filter(s => s.Movie_ID === m.Movie_ID);
                             const posterHtml = window.MTRSPosters ? 
                                 window.MTRSPosters.renderPosterHtml(m, 'admin-poster-thumb', m.Movie_Name) : '';
-                            const isArchived = m.Status === 'Archived';
+                            const isArchived = m.Status === 'Archived' || m.status === 'Archived';
 
                             return `
                                 <tr style="${isArchived ? 'opacity: 0.65;' : ''}">
@@ -662,7 +700,7 @@ class MTRSAdminPanel {
                                     </td>
                                     <td>
                                         <span style="font-size: 0.72rem; padding: 2px 8px; border-radius: 4px; font-weight: 700; background: ${isArchived ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)'}; color: ${isArchived ? '#ef4444' : 'var(--accent-emerald)'};">
-                                            ${m.Status || 'Active'}
+                                            ${m.Status || m.status || 'Active'}
                                         </span>
                                     </td>
                                     <td>
@@ -678,9 +716,15 @@ class MTRSAdminPanel {
                                             <button class="btn-secondary" style="padding: 0.25rem 0.55rem; font-size: 0.75rem;" onclick="window.MTRSAdmin.openEditMovieModal('${m.Movie_ID}')">
                                                 Edit
                                             </button>
-                                            <button class="btn-book-card" style="background: rgba(229, 9, 20, 0.2); border: 1px solid var(--primary); padding: 0.25rem 0.55rem; font-size: 0.75rem;" onclick="window.MTRSAdmin.deleteOrArchiveMovie('${m.Movie_ID}')">
-                                                ${movieShows.length > 0 ? 'Archive' : 'Delete'}
-                                            </button>
+                                            ${isArchived ? `
+                                                <button class="btn-secondary" style="background: rgba(16, 185, 129, 0.15); border: 1px solid var(--accent-emerald); color: var(--accent-emerald); padding: 0.25rem 0.55rem; font-size: 0.75rem; font-weight: 700;" onclick="window.MTRSAdmin.restoreMovie('${m.Movie_ID}')" title="Restore movie to active public screening catalogue">
+                                                    ↺ Restore
+                                                </button>
+                                            ` : `
+                                                <button class="btn-book-card" style="background: rgba(229, 9, 20, 0.2); border: 1px solid var(--primary); padding: 0.25rem 0.55rem; font-size: 0.75rem;" onclick="window.MTRSAdmin.deleteOrArchiveMovie('${m.Movie_ID}')" title="Archive movie from public catalogue">
+                                                    Archive
+                                                </button>
+                                            `}
                                         </div>
                                     </td>
                                 </tr>
@@ -811,9 +855,7 @@ class MTRSAdminPanel {
     }
 
     openEditMovieModal(movieId) {
-        const movies = (window.App && Array.isArray(window.App.movies) && window.App.movies.length > 0)
-            ? window.App.movies
-            : this.engine.getTable('MOVIE');
+        const movies = this.getMovies();
         const movie = movies.find(m => m.Movie_ID === movieId);
         if (!movie) return;
 
@@ -1338,6 +1380,7 @@ class MTRSAdminPanel {
             // 11. Reload authoritative catalogue from Supabase
             window.App.showToast(`Movie "${savedMovie.Movie_Name}" (${resolvedMovieId}) persisted to Supabase! Syncing catalogue...`, "info");
             await window.App.loadCinemaData();
+            await this.loadAdminMovies(true);
 
             // 12. Refresh Dashboard and Admin Movies Table
             this.refreshDashboard();
@@ -1374,9 +1417,7 @@ class MTRSAdminPanel {
     }
 
     async deleteOrArchiveMovie(movieId) {
-        const movies = (window.App && Array.isArray(window.App.movies) && window.App.movies.length > 0)
-            ? window.App.movies
-            : this.engine.getTable('MOVIE');
+        const movies = this.getMovies();
         const movie = movies.find(m => m.Movie_ID === movieId);
         if (!movie) return;
 
@@ -1410,8 +1451,45 @@ class MTRSAdminPanel {
             return;
         }
 
-        window.App.showToast(`✓ Movie "${movie.Movie_Name}" (${movieId}) archived successfully in Supabase!`, "success");
+        window.App.showToast(`✓ Movie "${movie.Movie_Name}" (${movieId}) archived successfully in Supabase! It is now hidden from the public website.`, "success");
         await window.App.loadCinemaData();
+        await this.loadAdminMovies(true);
+        this.refreshDashboard();
+        if (this.activeAdminTab === 'movies') this.renderMoviesTable();
+    }
+
+    async restoreMovie(movieId) {
+        const movies = this.getMovies();
+        const movie = movies.find(m => m.Movie_ID === movieId);
+        if (!movie) return;
+
+        const promptText = `Restore movie "${movie.Movie_Name}" (${movieId}) to Active status in Supabase?\n\n` +
+            `This will make the movie eligible to appear in the public movie catalogue, search results, and hero section.`;
+
+        if (!confirm(promptText)) return;
+
+        if (!window.MTRSSupabase || !window.MTRSSupabase.isConfigured) {
+            window.App.showToast("Supabase client is not connected.", "error");
+            return;
+        }
+
+        window.App.showToast(`Restoring movie "${movie.Movie_Name}" in Supabase...`, "info");
+
+        const res = await window.MTRSSupabase.restoreMovie(movieId);
+        if (!res || !res.success) {
+            const errMsg = res?.error || "Failed to restore movie in Supabase.";
+            console.error('[MTRS Admin] Restore failed:', res);
+            let friendly = errMsg;
+            if (res?.code === '42501' || errMsg.toLowerCase().includes('permission denied')) {
+                friendly = `Supabase Permission Denied (RLS): Administrator authorization required to restore movies.`;
+            }
+            window.App.showToast(friendly, "error");
+            return;
+        }
+
+        window.App.showToast(`✓ Movie "${movie.Movie_Name}" (${movieId}) restored to Active status! It is now visible on the public website.`, "success");
+        await window.App.loadCinemaData();
+        await this.loadAdminMovies(true);
         this.refreshDashboard();
         if (this.activeAdminTab === 'movies') this.renderMoviesTable();
     }
