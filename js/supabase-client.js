@@ -193,7 +193,10 @@
     // ------------------------------------------------------------------------
 
     // Fetch Movies from public.movies
-    async function fetchMovies() {
+    // Enforces filtering at the database query level:
+    // By default (options.includeArchived !== true), only 'Active' non-archived movies are retrieved.
+    // For administrative catalogue inspection, options.includeArchived: true returns all movies.
+    async function fetchMovies(options = {}) {
         if (!client) {
             return {
                 success: false,
@@ -207,10 +210,22 @@
             console.log('[MTRS Supabase] Querying public.movies from live database...');
             const startTime = performance.now();
 
-            const { data, error, status } = await client
+            let query = client
                 .from('movies')
-                .select('*')
-                .order('movie_id', { ascending: true });
+                .select('*');
+
+            const includeArchived = options && (options.includeArchived === true || options.status === 'All');
+            const targetStatus = (options && options.status && options.status !== 'All') 
+                ? options.status 
+                : (includeArchived ? null : 'Active');
+
+            if (targetStatus) {
+                query = query.eq('status', targetStatus);
+            }
+
+            query = query.order('movie_id', { ascending: true });
+
+            const { data, error, status } = await query;
 
             const elapsed = (performance.now() - startTime).toFixed(1);
 
@@ -258,7 +273,7 @@
     }
 
     // Fetch Latest Featured Movies from public.movies for Hero Slideshow
-    // Orders by creation timestamp created_at DESC with reliable fallback to movie_id DESC
+    // Enforces status = 'Active' at the database query level: Archived movies are NEVER featured.
     async function fetchFeaturedMovies(limit = 5) {
         if (!client) {
             return {
@@ -270,12 +285,13 @@
         }
 
         try {
-            console.log(`[MTRS Supabase] Querying latest ${limit} featured movies from public.movies...`);
+            console.log(`[MTRS Supabase] Querying latest ${limit} active featured movies from public.movies...`);
             const startTime = performance.now();
 
             const { data, error, status } = await client
                 .from('movies')
                 .select('*')
+                .eq('status', 'Active')
                 .order('created_at', { ascending: false, nullsFirst: false })
                 .order('movie_id', { ascending: false })
                 .limit(limit);
@@ -520,9 +536,9 @@
     }
 
     // Combined Parallel Fetch for Entire Cinema Operational Dataset
-    async function fetchCinemaSystem() {
+    async function fetchCinemaSystem(options = {}) {
         const [moviesRes, theatersRes, screensRes, showsRes] = await Promise.allSettled([
-            fetchMovies(),
+            fetchMovies(options),
             fetchTheaters(),
             fetchScreens(),
             fetchShows()
@@ -826,6 +842,76 @@
             };
         } catch (err) {
             console.error(`[MTRS Supabase] Exception archiving movie ${movieId}:`, err);
+            return {
+                success: false,
+                error: err.message
+            };
+        }
+    }
+
+    /**
+     * Restores an archived movie to 'Active' status in Supabase.
+     * Uses the atomic security-definer stored procedure public.sp_admin_set_movie_status,
+     * with graceful fallback to direct update if procedure is unavailable.
+     * @param {string} movieId
+     * @returns {Promise<{success: boolean, data?: any, error?: string}>}
+     */
+    async function restoreMovie(movieId) {
+        if (!client) {
+            return {
+                success: false,
+                error: initError ? initError.message : 'Supabase client not initialized'
+            };
+        }
+
+        if (!movieId) {
+            return { success: false, error: 'Target Movie ID is required.' };
+        }
+
+        try {
+            console.log(`[MTRS Supabase] Restoring movie ${movieId} to Active status...`);
+
+            // Try stored procedure sp_admin_set_movie_status first
+            const { data: rpcData, error: rpcError } = await client.rpc('sp_admin_set_movie_status', {
+                p_movie_id: movieId,
+                p_status: 'Active'
+            });
+
+            if (!rpcError && rpcData && rpcData.success) {
+                console.log(`[MTRS Supabase] Movie ${movieId} successfully restored via sp_admin_set_movie_status.`);
+                return { success: true, data: rpcData };
+            }
+
+            // Fallback to update if procedure call returned error or was not available
+            console.log(`[MTRS Supabase] Stored procedure unavailable or returned: ${rpcError ? rpcError.message : 'unknown'}. Attempting direct update...`);
+            const { data, error } = await client
+                .from('movies')
+                .update({ status: 'Active' })
+                .eq('movie_id', movieId)
+                .select();
+
+            if (error) {
+                console.error(`[MTRS Supabase] Error restoring movie ${movieId}:`, error);
+                return {
+                    success: false,
+                    error: error.message,
+                    code: error.code
+                };
+            }
+
+            if (!Array.isArray(data) || data.length === 0) {
+                return {
+                    success: false,
+                    error: `Movie "${movieId}" not found in database or restore operation was denied by RLS.`
+                };
+            }
+
+            return {
+                success: true,
+                data: mapMovieRecord(data[0])
+            };
+        } catch (err) {
+            console.error(`[MTRS Supabase] Exception restoring movie ${movieId}:`, err);
             return {
                 success: false,
                 error: err.message
@@ -1770,6 +1856,7 @@
         createMovie: createMovie,
         updateMovie: updateMovie,
         archiveMovie: archiveMovie,
+        restoreMovie: restoreMovie,
         checkIsAdmin: checkIsAdmin,
         // Supabase Storage (Movie Artwork & Backdrops)
         STORAGE_BUCKET_NAME: STORAGE_BUCKET_NAME,

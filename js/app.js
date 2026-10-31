@@ -280,18 +280,20 @@ class MTRSApp {
 
             // 1. Process Movies (public.movies)
             if (system.movies && system.movies.success && Array.isArray(system.movies.data) && system.movies.data.length > 0) {
-                this.movies = system.movies.data;
+                // Ensure only active, non-archived movies are stored in public customer state
+                this.movies = system.movies.data.filter(m => (m.Status || m.status || 'Active') === 'Active');
                 this.dataSources.movies = 'SUPABASE';
                 this.movieSource = 'SUPABASE';
-                if (this.engine && this.engine.db) this.engine.db.MOVIE = system.movies.data;
-                loadedSummary.push(`${system.movies.count} Movies`);
+                if (this.engine && this.engine.db) this.engine.db.MOVIE = this.movies;
+                loadedSummary.push(`${this.movies.length} Movies`);
                 // Update featured movies for Netflix-style hero slideshow from Supabase
                 await this.updateFeaturedMovies();
             } else {
                 allLive = false;
                 this.dataSources.movies = 'LOCAL_FALLBACK';
                 this.movieSource = 'LOCAL_FALLBACK';
-                this.movies = this.engine.getTable('MOVIE');
+                const localPool = this.engine.getTable('MOVIE') || [];
+                this.movies = localPool.filter(m => (m.Status || m.status || 'Active') === 'Active');
                 const err = system.movies?.error || 'Empty movie dataset';
                 fallbackReasons.push(`Movies: ${err}`);
                 console.warn('[MTRS App] Movies query failed, using local fallback:', err);
@@ -371,7 +373,8 @@ class MTRSApp {
 
     fallbackToLocalData(reason) {
         console.warn(`[MTRS App] Using LOCAL FALLBACK DATA. Reason: ${reason}`);
-        this.movies = this.engine.getTable('MOVIE');
+        const localPool = this.engine.getTable('MOVIE') || [];
+        this.movies = localPool.filter(m => (m.Status || m.status || 'Active') === 'Active');
         this.theaters = this.engine.getTable('THEATER');
         this.screens = this.engine.getTable('SCREEN');
         this.shows = this.engine.getTable('SHOWS');
@@ -575,16 +578,21 @@ class MTRSApp {
     // ------------------------------------------------------------------------
 
     /**
-     * Resolves the 5 most recently added movies with reliable sorting:
+     * Resolves the 5 most recently added active movies with reliable sorting:
      * 1. Creation timestamp (created_at / Created_At) DESC
      * 2. Primary key identifier (Movie_ID) DESC as authoritative fallback
+     * Enforces that archived movies are NEVER included in featured highlights.
      */
     getLatestFeaturedMovies(limit = 5) {
         const pool = (this.movies && this.movies.length > 0) ? this.movies :
             (this.engine ? this.engine.getTable('MOVIE') : []);
         if (!Array.isArray(pool) || pool.length === 0) return [];
 
-        const sorted = [...pool].sort((a, b) => {
+        // Strictly filter to active, non-archived movies
+        const activePool = pool.filter(m => (m.Status || m.status || 'Active') === 'Active');
+        if (activePool.length === 0) return [];
+
+        const sorted = [...activePool].sort((a, b) => {
             const timeA = (a.Created_At || a.created_at) ? Date.parse(a.Created_At || a.created_at) : NaN;
             const timeB = (b.Created_At || b.created_at) ? Date.parse(b.Created_At || b.created_at) : NaN;
             if (!isNaN(timeA) && !isNaN(timeB) && timeA !== timeB) {
@@ -599,16 +607,19 @@ class MTRSApp {
     }
 
     /**
-     * Retrieves featured movies directly from Supabase with graceful fallback
+     * Retrieves featured movies directly from Supabase with graceful fallback.
+     * Guarantees that archived movies are completely excluded.
      */
     async updateFeaturedMovies() {
         if (window.MTRSSupabase && typeof window.MTRSSupabase.fetchFeaturedMovies === 'function') {
             try {
                 const res = await window.MTRSSupabase.fetchFeaturedMovies(5);
                 if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
-                    this.featuredMovies = res.data;
-                    this.renderHeroBanner();
-                    return;
+                    this.featuredMovies = res.data.filter(m => (m.Status || m.status || 'Active') === 'Active');
+                    if (this.featuredMovies.length > 0) {
+                        this.renderHeroBanner();
+                        return;
+                    }
                 }
             } catch (err) {
                 console.warn('[MTRS App] Direct fetchFeaturedMovies query error, falling back:', err);
@@ -621,16 +632,26 @@ class MTRSApp {
 
     /**
      * Initializes or re-renders the Netflix-style Cinematic Hero Slideshow
+     * Automatically hides or excludes archived movies.
      */
     renderHeroBanner() {
         const heroSection = document.getElementById('hero-slideshow');
         if (!heroSection) return;
 
+        // Ensure no archived movies exist in featured list
+        if (this.featuredMovies && this.featuredMovies.length > 0) {
+            this.featuredMovies = this.featuredMovies.filter(m => (m.Status || m.status || 'Active') === 'Active');
+        }
+
         if (!this.featuredMovies || this.featuredMovies.length === 0) {
             this.featuredMovies = this.getLatestFeaturedMovies(5);
         }
 
-        if (!this.featuredMovies || this.featuredMovies.length === 0) return;
+        if (!this.featuredMovies || this.featuredMovies.length === 0) {
+            heroSection.style.display = 'none';
+            return;
+        }
+        heroSection.style.display = 'block';
 
         if (this.heroCurrentIndex >= this.featuredMovies.length) {
             this.heroCurrentIndex = 0;
@@ -765,7 +786,10 @@ class MTRSApp {
     renderHeroSlide(index, immediate = false) {
         if (!this.featuredMovies || this.featuredMovies.length === 0) return;
         const movie = this.featuredMovies[index];
-        if (!movie) return;
+        if (!movie || movie.Status === 'Archived' || movie.status === 'Archived') {
+            this.renderHeroBanner();
+            return;
+        }
 
         this.heroCurrentIndex = index;
 
@@ -1016,6 +1040,12 @@ class MTRSApp {
         const movie = movies.find(m => m.Movie_ID === movieId) || this.engine.getTable('MOVIE').find(m => m.Movie_ID === movieId);
         if (!movie) return;
 
+        // Prevent booking archived movies
+        if (movie.Status === 'Archived' || movie.status === 'Archived') {
+            this.showToast(`Movie "${movie.Movie_Name}" is archived and no longer available for booking.`, "warning");
+            return;
+        }
+
         this.selectedMovie = movie;
         this.selectedShow = null;
         this.selectedSeats = [];
@@ -1039,6 +1069,11 @@ class MTRSApp {
         if (!container || !this.selectedMovie) return;
 
         const movie = this.selectedMovie;
+        if (movie.Status === 'Archived' || movie.status === 'Archived') {
+            this.switchView('home');
+            this.showToast(`Movie "${movie.Movie_Name}" is archived and no longer available for booking.`, "warning");
+            return;
+        }
         const theaters = this.theaters || this.engine.getTable('THEATER');
         const screens = this.screens || this.engine.getTable('SCREEN');
         const shows = this.shows || this.engine.getTable('SHOWS');
@@ -1193,6 +1228,14 @@ class MTRSApp {
         const shows = this.shows || this.engine.getTable('SHOWS');
         const show = shows.find(s => s.Show_ID === showId) || this.engine.getTable('SHOWS').find(s => s.Show_ID === showId);
         if (!show) return;
+
+        // Prevent selecting shows for archived movies
+        const movies = this.movies || this.engine.getTable('MOVIE');
+        const movie = movies.find(m => m.Movie_ID === show.Movie_ID);
+        if (movie && (movie.Status === 'Archived' || movie.status === 'Archived')) {
+            this.showToast(`The movie for this show is archived and no longer accepting reservations.`, "warning");
+            return;
+        }
 
         this.selectedShow = show;
         this.selectedSeats = [];

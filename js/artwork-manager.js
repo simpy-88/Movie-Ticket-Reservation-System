@@ -125,6 +125,9 @@
          * Resolves current list of movies from Supabase, Engine, or Poster Registry
          */
         getAvailableMovies() {
+            if (window.MTRSAdmin && Array.isArray(window.MTRSAdmin.adminMovies) && window.MTRSAdmin.adminMovies.length > 0) {
+                return window.MTRSAdmin.adminMovies;
+            }
             if (window.App && Array.isArray(window.App.movies) && window.App.movies.length > 0) {
                 return window.App.movies;
             }
