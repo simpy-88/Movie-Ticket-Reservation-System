@@ -317,19 +317,19 @@ body {
     transform: scale(1.0);
 }
 
-/* Layered Gradients Overlay: Ensures absolute legibility while preserving artwork vibrance */
+/* Layered Gradients Overlay: Balanced cinematic vignette revealing backdrop artwork while preserving legibility */
 .hero-backdrop-overlay {
     position: absolute;
     inset: 0;
     width: 100%;
     height: 100%;
     background:
-        /* Left deep vignette - protects text readability */
-        linear-gradient(90deg, rgba(8, 9, 16, 0.96) 0%, rgba(8, 9, 16, 0.84) 34%, rgba(8, 9, 16, 0.45) 65%, rgba(8, 9, 16, 0.12) 100%),
-        /* Bottom smooth fade into catalog */
-        linear-gradient(0deg, rgba(8, 9, 16, 1) 0%, rgba(8, 9, 16, 0.72) 18%, transparent 52%),
-        /* Top subtle blend under navbar */
-        linear-gradient(180deg, rgba(8, 9, 16, 0.75) 0%, transparent 22%);
+        /* Left gentle vignette - guarantees text contrast while keeping artwork vivid */
+        linear-gradient(90deg, rgba(8, 9, 16, 0.72) 0%, rgba(8, 9, 16, 0.55) 32%, rgba(8, 9, 16, 0.20) 65%, transparent 90%),
+        /* Bottom subtle blend into catalog */
+        linear-gradient(0deg, rgba(8, 9, 16, 0.78) 0%, rgba(8, 9, 16, 0.35) 14%, transparent 36%),
+        /* Top soft blend under navbar */
+        linear-gradient(180deg, rgba(8, 9, 16, 0.48) 0%, transparent 16%);
     z-index: 2;
     pointer-events: none;
 }
